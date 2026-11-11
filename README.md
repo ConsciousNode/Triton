@@ -10,4 +10,4 @@ Its ancestors are the first Triton VMs (6-trit words, 25 opcodes), archived in [
 
 **First look:** open `triton.html` in a browser, or run `node tests/run.js` and `node audit/unseen.js`.
 
-Single-file, zero-dependency, offline. MIT License · ConsciousNode SoftWorks
+Xinu: single-file, zero-dependency, offline. MIT License · ConsciousNode SoftWorks
