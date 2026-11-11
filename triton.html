@@ -1,0 +1,4336 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'unsafe-inline' 'wasm-unsafe-eval'; style-src 'unsafe-inline'; img-src data:; connect-src 'none';">
+<title>TRITON 2.0 — Balanced-Ternary Computer (ConsciousNode SoftWorks)</title>
+<!--
+╔══════════════════════════════════════════════════════════════════════════════╗
+║ TRITON 2.0 — BALANCED-TERNARY COMPUTER, FROM ISA TO SHELL                    ║
+║ ConsciousNode SoftWorks · Xinu Rules: Single-File HTML, Zero Dependencies,   ║
+║ Offline, Deterministic. Every inline component is labeled below:             ║
+║                                                                              ║
+║   [INLINE 1/7] CSS Theme & Workstation Layout                                ║
+║   [INLINE 2/7] Machine State Snapshot JSON (#triton-snapshot)                ║
+║   [INLINE 3/7] MicroWAT 2.0.0 Assembler (from The-Beginning/microwat)        ║
+║   [INLINE 4/7] Triton 2.0 Dual Interpreters (JS Reference + MicroWAT WASM)   ║
+║   [INLINE 5/7] Triton 2.0 Two-Pass Assembler & Disassembler                  ║
+║   [INLINE 6/7] TritOS 2.0 Kernel, Shell, Programs & Self-Hosting Assembler   ║
+║   [INLINE 7/7] Workstation Devices, State Exporter & UI Controller           ║
+╚══════════════════════════════════════════════════════════════════════════════╝
+-->
+<!-- [INLINE 1/7] CSS Theme & Workstation Layout -->
+<style>
+:root {
+  --bg-void: #06070b;
+  --bg-panel: #0d0f17;
+  --bg-card: #131622;
+  --bg-input: #181c2b;
+  --border: #23283d;
+  --text-main: #e6e9f4;
+  --text-muted: #7f87a6;
+  --trit-pos: #00e676;
+  --trit-neg: #ff3366;
+  --trit-zero: #4f5673;
+  --accent-pc: #ffca28;
+  --accent-sp: #29b6f6;
+  --accent-wasm: #ab47bc;
+  --font-mono: "SF Mono", "Cascadia Code", "Fira Code", Consolas, "Courier New", monospace;
+  --font-sans: system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body {
+  background: var(--bg-void);
+  color: var(--text-main);
+  font-family: var(--font-sans);
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  overflow-x: hidden;
+}
+header {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 10px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+}
+.brand {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font-mono);
+}
+.brand-title {
+  font-size: 1.15rem;
+  font-weight: 800;
+  letter-spacing: 0.04em;
+  color: var(--text-main);
+}
+.badge {
+  font-size: 0.68rem;
+  padding: 2px 7px;
+  border-radius: 3px;
+  border: 1px solid var(--trit-pos);
+  color: var(--trit-pos);
+  font-family: var(--font-mono);
+  text-transform: uppercase;
+}
+.toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+button, select {
+  background: var(--bg-input);
+  color: var(--text-main);
+  border: 1px solid var(--border);
+  padding: 5px 11px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s;
+}
+button:hover, select:hover {
+  border-color: var(--text-muted);
+  background: #20263a;
+}
+button.btn-primary {
+  border-color: rgba(0, 230, 118, 0.45);
+  color: var(--trit-pos);
+}
+button.btn-primary:hover {
+  background: rgba(0, 230, 118, 0.12);
+  border-color: var(--trit-pos);
+}
+button.btn-warn {
+  border-color: rgba(255, 202, 40, 0.45);
+  color: var(--accent-pc);
+}
+button.btn-danger {
+  border-color: rgba(255, 51, 102, 0.45);
+  color: var(--trit-neg);
+}
+.workspace {
+  display: grid;
+  grid-template-columns: 340px 1fr 380px;
+  flex: 1;
+  min-height: 0;
+}
+@media (max-width: 1180px) {
+  .workspace { grid-template-columns: 1fr; }
+}
+.col {
+  border-right: 1px solid var(--border);
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.col:last-child { border-right: none; }
+.panel-hdr {
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  padding: 7px 12px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+.display-wrap {
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  background: #040508;
+  border-bottom: 1px solid var(--border);
+}
+#triton-screen {
+  width: 243px;
+  height: 243px;
+  border: 1px solid var(--border);
+  image-rendering: pixelated;
+  background: #000;
+}
+.console-box {
+  flex: 1;
+  background: var(--bg-card);
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.76rem;
+  line-height: 1.45;
+  overflow-y: auto;
+  white-space: pre-wrap;
+  word-break: break-word;
+  min-height: 180px;
+  max-height: 320px;
+}
+.cmd-bar {
+  display: flex;
+  border-top: 1px solid var(--border);
+  background: var(--bg-input);
+}
+.cmd-bar input {
+  flex: 1;
+  background: transparent;
+  border: none;
+  color: var(--text-main);
+  padding: 8px 10px;
+  font-family: var(--font-mono);
+  font-size: 0.78rem;
+  outline: none;
+}
+.quick-cmds {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+}
+.quick-cmds button {
+  padding: 3px 7px;
+  font-size: 0.68rem;
+}
+.status-strip {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 6px;
+  padding: 10px;
+  background: var(--bg-panel);
+  border-bottom: 1px solid var(--border);
+  font-family: var(--font-mono);
+}
+.stat-cell {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 6px 8px;
+  border-radius: 4px;
+}
+.stat-lbl { font-size: 0.63rem; color: var(--text-muted); }
+.stat-val { font-size: 0.8rem; font-weight: 700; margin-top: 2px; }
+.reg-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+  padding: 10px;
+  border-bottom: 1px solid var(--border);
+}
+.reg-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  padding: 7px 9px;
+  border-radius: 4px;
+  font-family: var(--font-mono);
+}
+.reg-top {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.7rem;
+  margin-bottom: 3px;
+}
+.reg-name { color: var(--accent-sp); font-weight: 700; }
+.reg-dec { color: var(--text-muted); }
+.reg-trits {
+  font-size: 0.67rem;
+  letter-spacing: 0.03em;
+  word-break: break-all;
+  line-height: 1.3;
+}
+.t1 { color: var(--trit-pos); }
+.tT { color: var(--trit-neg); }
+.t0 { color: var(--trit-zero); }
+.mem-view {
+  flex: 1;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.72rem;
+  overflow-y: auto;
+  background: var(--bg-void);
+  white-space: pre;
+}
+.editor-area {
+  flex: 1;
+  width: 100%;
+  background: var(--bg-card);
+  color: var(--text-main);
+  border: none;
+  padding: 10px;
+  font-family: var(--font-mono);
+  font-size: 0.74rem;
+  line-height: 1.45;
+  resize: none;
+  outline: none;
+}
+footer {
+  background: var(--bg-panel);
+  border-top: 1px solid var(--border);
+  padding: 6px 16px;
+  font-family: var(--font-mono);
+  font-size: 0.7rem;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+}
+</style>
+</head>
+<body>
+<header>
+  <div class="brand">
+    <span class="brand-title">TRITON 2.0</span>
+    <span class="badge">27-Trit Word · 9-Trit Tryte</span>
+    <span class="badge" id="engine-badge">Dual Lockstep (JS + MicroWAT WASM)</span>
+  </div>
+  <div class="toolbar">
+    <select id="mode-select" title="Interpreter Mode">
+      <option value="lockstep">Mode: Lockstep (JS + WASM Verify)</option>
+      <option value="wasm">Mode: MicroWAT WASM Only</option>
+      <option value="js">Mode: JS Reference Only</option>
+    </select>
+    <button class="btn-primary" id="btn-boot">Boot TritOS</button>
+    <button id="btn-step">Step</button>
+    <button id="btn-run">Run Batch</button>
+    <button class="btn-warn" id="btn-selfhost">Self-Host Verify</button>
+    <button id="btn-export">Export .HTML</button>
+    <button class="btn-danger" id="btn-reset">Reset</button>
+  </div>
+</header>
+<div class="workspace">
+  <!-- LEFT COLUMN: 243x243 27-Color Display & Interactive TritOS Shell -->
+  <div class="col">
+    <div class="panel-hdr">
+      <span>Display · 243×243 · 27 Ternary Colors (3 Trits)</span>
+      <span id="cursor-coords">X:0 Y:0</span>
+    </div>
+    <div class="display-wrap">
+      <canvas id="triton-screen" width="243" height="243"></canvas>
+    </div>
+    <div class="panel-hdr">
+      <span>TritOS Console Transcript (Port 0)</span>
+      <span id="disk-status">Disk: 19,683 Trytes</span>
+    </div>
+    <div class="console-box" id="console-output"></div>
+    <div class="cmd-bar">
+      <input type="text" id="cmd-input" placeholder="tritos> Type command (e.g. list, calc 10T+11, draw, game, asm)..." autocomplete="off">
+      <button class="btn-primary" id="btn-send-cmd">Send</button>
+    </div>
+    <div class="quick-cmds">
+      <button data-cmd="list">list</button>
+      <button data-cmd="calc 10T+11">calc 10T+11</button>
+      <button data-cmd="calc 11T*1T">calc 11T*1T</button>
+      <button data-cmd="draw">draw</button>
+      <button data-cmd="game">game</button>
+      <button data-cmd="type HELLO">type HELLO</button>
+      <button data-cmd="save NOTE TRITON2">save NOTE</button>
+      <button data-cmd="reboot">reboot</button>
+      <button data-cmd="asm">asm (self-host)</button>
+    </div>
+  </div>
+  <!-- CENTER COLUMN: CPU Status, 9x 27-Trit Registers, Disassembly & Memory -->
+  <div class="col">
+    <div class="panel-hdr">
+      <span>CPU Architectural State &amp; Ternary Flags</span>
+      <span id="sync-indicator" style="color: var(--trit-pos);">JS ≡ WASM LOCKSTEP OK</span>
+    </div>
+    <div class="status-strip">
+      <div class="stat-cell"><div class="stat-lbl">PC (Tryte)</div><div class="stat-val" id="st-pc">0</div></div>
+      <div class="stat-cell"><div class="stat-lbl">SP (Tryte)</div><div class="stat-val" id="st-sp">-1</div></div>
+      <div class="stat-cell"><div class="stat-lbl">SF (Sign)</div><div class="stat-val" id="st-sf">0</div></div>
+      <div class="stat-cell"><div class="stat-lbl">CF (Carry)</div><div class="stat-val" id="st-cf">0</div></div>
+      <div class="stat-cell"><div class="stat-lbl">OF (Overflow)</div><div class="stat-val" id="st-of">0</div></div>
+      <div class="stat-cell"><div class="stat-lbl">Steps</div><div class="stat-val" id="st-steps">0</div></div>
+    </div>
+    <div class="panel-hdr">
+      <span>General-Purpose Registers (R0–R8 · 27 Trits = 3 Trytes Each)</span>
+    </div>
+    <div class="reg-grid" id="reg-grid"></div>
+    <div class="panel-hdr">
+      <span>Live Disassembly &amp; Tryte Memory Window Around PC</span>
+      <span id="state-hash-lbl">Hash: 00000000</span>
+    </div>
+    <div class="mem-view" id="mem-view"></div>
+  </div>
+  <!-- RIGHT COLUMN: Source / WAT / Disassembly Inspector -->
+  <div class="col">
+    <div class="panel-hdr">
+      <span>Source / Inspector</span>
+      <div>
+        <button id="tab-asm">TritOS ASM</button>
+        <button id="tab-wat">MicroWAT Source</button>
+        <button id="tab-assemble" class="btn-primary">Assemble Editor</button>
+      </div>
+    </div>
+    <textarea class="editor-area" id="source-editor" spellcheck="false"></textarea>
+  </div>
+</div>
+<footer>
+  <span id="footer-msg">Ready. Native Balanced-Ternary VM (T=-1, 0=0, 1=+1). Wrap modulo 3^27.</span>
+  <span>ConsciousNode SoftWorks · Triton 2.0</span>
+</footer>
+<!-- [INLINE 2/7] Machine State Snapshot JSON (Populated on Export) -->
+<script id="triton-snapshot" type="application/json">null</script>
+<script>
+'use strict';
+/* ============================================================================
+ * [INLINE 3/7] MicroWAT 2.0.0 Assembler
+ * from The-Beginning/microwat: microwat.js 2.0.0
+ * ========================================================================== */
+/* MicroWAT 2 — a tiny WebAssembly-text assembler in plain JavaScript.
+ * ConsciousNode SoftWorks · MIT
+ *
+ * Grown from the assembler inside WASM-Kernel (March 2026), with its bugs
+ * fixed and SIMD added, so any single-file Xinu app can carry hand-written
+ * WebAssembly as *text* and assemble it at load time: no toolchain, no
+ * binary blobs, no dependencies.
+ *
+ * Supports a deliberately small subset of WAT:
+ *   (module ...) with func, import (func | memory), memory, global, export, data
+ *   params / results / locals, named ($x) or numbered
+ *   flat or folded instructions; block / loop / if with optional (result t)
+ *   i32, i64 (const only + basic), f32, f64 arithmetic and comparisons
+ *   loads / stores with offset= / align=
+ *   SIMD (v128): load / store, splat, extract_lane, f32x4 math,
+ *   integer widening, conversions
+ *
+ * Usage:  const bytes = MicroWAT.assemble(watText);
+ *         const { instance } = await WebAssembly.instantiate(bytes, imports);
+ */
+(function (root) {
+  'use strict';
+
+  const T = { i32: 0x7F, i64: 0x7E, f32: 0x7D, f64: 0x7C, v128: 0x7B };
+
+  // name -> [opcode, immediateKind]. Kinds:
+  //  none · i32 (sleb) · i64 (sleb) · f32 · f64 · local · global · func · label
+  //  block (blocktype) · mem (memarg, natural align given) · lane (1 byte)
+  // Opcodes >= 0xFD00 are SIMD: 0xFD prefix + uleb(op & 0xFFF... see emit).
+  const OPS = {};
+  const def = (list, kind) => { for (const [n, op, a] of list) OPS[n] = [op, kind, a]; };
+
+  def([['unreachable', 0x00], ['nop', 0x01], ['else', 0x05], ['end', 0x0B], ['return', 0x0F],
+       ['drop', 0x1A], ['select', 0x1B]], 'none');
+  def([['block', 0x02], ['loop', 0x03], ['if', 0x04]], 'block');
+  def([['br', 0x0C], ['br_if', 0x0D]], 'label');
+  def([['call', 0x10]], 'func');
+  def([['local.get', 0x20], ['local.set', 0x21], ['local.tee', 0x22]], 'local');
+  def([['global.get', 0x23], ['global.set', 0x24]], 'global');
+  def([['i32.load', 0x28, 2], ['i64.load', 0x29, 3], ['f32.load', 0x2A, 2], ['f64.load', 0x2B, 3],
+       ['i32.load8_s', 0x2C, 0], ['i32.load8_u', 0x2D, 0], ['i32.load16_s', 0x2E, 1], ['i32.load16_u', 0x2F, 1],
+       ['i32.store', 0x36, 2], ['i64.store', 0x37, 3], ['f32.store', 0x38, 2], ['f64.store', 0x39, 3],
+       ['i32.store8', 0x3A, 0], ['i32.store16', 0x3B, 1]], 'mem');
+  def([['memory.size', 0x3F], ['memory.grow', 0x40]], 'memidx');
+  def([['i32.const', 0x41]], 'i32');
+  def([['i64.const', 0x42]], 'i64');
+  def([['f32.const', 0x43]], 'f32');
+  def([['f64.const', 0x44]], 'f64');
+  def([
+    ['i32.eqz', 0x45], ['i32.eq', 0x46], ['i32.ne', 0x47], ['i32.lt_s', 0x48], ['i32.lt_u', 0x49],
+    ['i32.gt_s', 0x4A], ['i32.gt_u', 0x4B], ['i32.le_s', 0x4C], ['i32.le_u', 0x4D], ['i32.ge_s', 0x4E], ['i32.ge_u', 0x4F],
+    ['f32.eq', 0x5B], ['f32.ne', 0x5C], ['f32.lt', 0x5D], ['f32.gt', 0x5E], ['f32.le', 0x5F], ['f32.ge', 0x60],
+    ['f64.eq', 0x61], ['f64.ne', 0x62], ['f64.lt', 0x63], ['f64.gt', 0x64], ['f64.le', 0x65], ['f64.ge', 0x66],
+    ['i32.clz', 0x67], ['i32.ctz', 0x68], ['i32.popcnt', 0x69],
+    ['i32.add', 0x6A], ['i32.sub', 0x6B], ['i32.mul', 0x6C], ['i32.div_s', 0x6D], ['i32.div_u', 0x6E],
+    ['i32.rem_s', 0x6F], ['i32.rem_u', 0x70], ['i32.and', 0x71], ['i32.or', 0x72], ['i32.xor', 0x73],
+    ['i32.shl', 0x74], ['i32.shr_s', 0x75], ['i32.shr_u', 0x76], ['i32.rotl', 0x77], ['i32.rotr', 0x78],
+    ['i64.add', 0x7C], ['i64.sub', 0x7D], ['i64.mul', 0x7E],
+    ['f32.abs', 0x8B], ['f32.neg', 0x8C], ['f32.ceil', 0x8D], ['f32.floor', 0x8E], ['f32.sqrt', 0x91],
+    ['f32.add', 0x92], ['f32.sub', 0x93], ['f32.mul', 0x94], ['f32.div', 0x95], ['f32.min', 0x96], ['f32.max', 0x97],
+    ['f64.abs', 0x99], ['f64.neg', 0x9A], ['f64.sqrt', 0x9F],
+    ['f64.add', 0xA0], ['f64.sub', 0xA1], ['f64.mul', 0xA2], ['f64.div', 0xA3],
+    ['i32.wrap_i64', 0xA7], ['i32.trunc_f32_s', 0xA8], ['i64.extend_i32_s', 0xAC], ['i64.extend_i32_u', 0xAD],
+    ['f32.convert_i32_s', 0xB2], ['f32.convert_i32_u', 0xB3], ['f32.demote_f64', 0xB6],
+    ['f64.convert_i32_s', 0xB7], ['f64.promote_f32', 0xBB],
+    ['i32.reinterpret_f32', 0xBC], ['f32.reinterpret_i32', 0xBE],
+  ], 'none');
+
+  // SIMD (0xFD prefix). Stored as 0xFD00 | op.
+  const S = op => 0xFD00 | op;
+  def([['v128.load', S(0x00), 4], ['v128.store', S(0x0B), 4]], 'mem');
+  def([['f32x4.extract_lane', S(0x1F)], ['i32x4.extract_lane', S(0x1B)]], 'lane');
+  def([
+    ['i8x16.splat', S(0x0F)], ['i16x8.splat', S(0x10)], ['i32x4.splat', S(0x11)], ['f32x4.splat', S(0x13)],
+    ['v128.not', S(0x4D)], ['v128.and', S(0x4E)], ['v128.andnot', S(0x4F)], ['v128.or', S(0x50)], ['v128.xor', S(0x51)],
+    ['v128.bitselect', S(0x52)],
+    ['i8x16.eq', S(0x23)], ['i32x4.eq', S(0x37)],
+    ['i16x8.extend_low_i8x16_s', S(0x87)], ['i16x8.extend_high_i8x16_s', S(0x88)],
+    ['i32x4.extend_low_i16x8_s', S(0xA7)], ['i32x4.extend_high_i16x8_s', S(0xA8)],
+    ['i32x4.ne', S(0x38)], ['i32x4.shl', S(0xAB)], ['i32x4.shr_s', S(0xAC)],
+    ['i32x4.add', S(0xAE)], ['i32x4.sub', S(0xB1)], ['i32x4.mul', S(0xB5)],
+    ['f32x4.abs', S(0xE0)], ['f32x4.neg', S(0xE1)], ['f32x4.sqrt', S(0xE3)],
+    ['f32x4.add', S(0xE4)], ['f32x4.sub', S(0xE5)], ['f32x4.mul', S(0xE6)], ['f32x4.div', S(0xE7)],
+    ['f32x4.min', S(0xE8)], ['f32x4.max', S(0xE9)],
+    ['f32x4.convert_i32x4_s', S(0xFA)],
+  ], 'none');
+
+  // ---------- encoding helpers ----------
+  const uleb = v => { const b = []; v = v >>> 0; do { let x = v & 0x7f; v >>>= 7; if (v) x |= 0x80; b.push(x); } while (v); return b; };
+  const sleb = v => { // works for i32 and (BigInt) i64
+    const big = typeof v === 'bigint'; const b = [];
+    for (;;) {
+      const x = Number(big ? (v & 0x7fn) : (v & 0x7f));
+      v = big ? (v >> 7n) : (v >> 7);
+      const done = big ? ((v === 0n && !(x & 0x40)) || (v === -1n && (x & 0x40)))
+                       : ((v === 0 && !(x & 0x40)) || (v === -1 && (x & 0x40)));
+      b.push(done ? x : x | 0x80); if (done) return b;
+    }
+  };
+  const f32b = v => [...new Uint8Array(new Float32Array([v]).buffer)];
+  const f64b = v => [...new Uint8Array(new Float64Array([v]).buffer)];
+  const str = s => { const u = new TextEncoder().encode(s); return [...uleb(u.length), ...u]; };
+  const vec = items => [...uleb(items.length), ...items.flat()];
+  const section = (id, items) => items.length ? (b => [id, ...uleb(b.length), ...b])(vec(items)) : [];
+  const int = s => { if (typeof s !== 'string') throw new Error('MicroWAT: expected a number, got ' + JSON.stringify(s)); return parseInt(s.replace(/_/g, ''), s.startsWith('0x') || s.startsWith('-0x') ? 16 : 10); };
+  const num = s => { s = s.replace(/_/g, ''); if (/^-?0x/.test(s)) return parseInt(s, 16); if (s === 'inf') return Infinity; if (s === '-inf') return -Infinity; if (s === 'nan') return NaN; return parseFloat(s); };
+
+  // ---------- reader ----------
+  function tokenize(src) {
+    const t = []; let i = 0;
+    while (i < src.length) {
+      const c = src[i];
+      if (c === '(' && src[i + 1] === ';') { const j = src.indexOf(';)', i); i = j < 0 ? src.length : j + 2; }
+      else if (c === '(' || c === ')') { t.push(c); i++; }
+      else if (/\s/.test(c)) i++;
+      else if (c === ';' && src[i + 1] === ';') { while (i < src.length && src[i] !== '\n') i++; }
+      else if (c === '"') {
+        let s = []; i++;
+        while (i < src.length && src[i] !== '"') {
+          if (src[i] === '\\') {
+            const n = src[i + 1];
+            if (/[0-9a-fA-F]/.test(n) && /[0-9a-fA-F]/.test(src[i + 2])) { s.push(parseInt(src.substr(i + 1, 2), 16)); i += 3; continue; }
+            s.push(...new TextEncoder().encode({ n: '\n', t: '\t', '\\': '\\', '"': '"', "'": "'" }[n] ?? n)); i += 2; continue;
+          }
+          const cp = src.codePointAt(i); const ch = String.fromCodePoint(cp);
+          s.push(...new TextEncoder().encode(ch)); i += ch.length;
+        }
+        t.push({ bytes: s, text: new TextDecoder().decode(new Uint8Array(s)) }); i++;
+      } else { let w = ''; while (i < src.length && !/[\s()";]/.test(src[i])) w += src[i++]; t.push(w); }
+    }
+    return t;
+  }
+  function parse(tokens) {
+    let p = 0;
+    const read = () => {
+      const t = tokens[p++];
+      if (t === '(') { const l = []; while (tokens[p] !== ')') { if (p >= tokens.length) throw new Error('MicroWAT: missing )'); l.push(read()); } p++; return l; }
+      if (t === ')') throw new Error('MicroWAT: unexpected )');
+      return t;
+    };
+    const top = read(); if (!Array.isArray(top) || top[0] !== 'module') throw new Error('MicroWAT: root must be (module ...)');
+    return top;
+  }
+
+  // ---------- assembler ----------
+  function assemble(src) {
+    const mod = parse(tokenize(src));
+    const types = [], imports = [], funcs = [], mems = [], globals = [], exports = [], datas = [];
+    const funcIdx = {}, globalIdx = {}, memIdx = {};
+    let nFunc = 0, nGlobal = 0, nMem = 0;
+    const typeOf = (params, results) => {
+      const key = params.join(',') + '>' + results.join(',');
+      let i = types.findIndex(t => t.key === key);
+      if (i < 0) { i = types.length; types.push({ key, params, results }); }
+      return i;
+    };
+    const isName = x => typeof x === 'string' && x[0] === '$';
+    const sig = items => { // reads (param ...) (result ...) → {params, results, names}
+      const params = [], results = [], names = [];
+      for (const it of items) {
+        if (!Array.isArray(it)) continue;
+        if (it[0] === 'param') {
+          if (isName(it[1])) { names.push(it[1]); params.push(T[it[2]]); }
+          else for (const ty of it.slice(1)) { names.push(null); params.push(T[ty]); }
+        } else if (it[0] === 'result') for (const ty of it.slice(1)) results.push(T[ty]);
+      }
+      return { params, results, names };
+    };
+    const inlineExport = (items, kind, index) => {
+      for (const it of items) if (Array.isArray(it) && it[0] === 'export') exports.push({ name: it[1].text, kind, index });
+    };
+
+    // pass 1: imports, then index every definition (imports come first in index spaces)
+    for (const n of mod.slice(1)) if (n[0] === 'import') {
+      const [, m, f, d] = n; const name = isName(d[1]) ? d[1] : null;
+      if (d[0] === 'func') { const s = sig(d.slice(1)); imports.push([...str(m.text), ...str(f.text), 0, ...uleb(typeOf(s.params, s.results))]); if (name) funcIdx[name] = nFunc; nFunc++; }
+      else if (d[0] === 'memory') { const lim = d.filter(x => typeof x === 'string' && /^\d+$/.test(x)).map(Number); imports.push([...str(m.text), ...str(f.text), 2, ...(lim.length > 1 ? [1, ...uleb(lim[0]), ...uleb(lim[1])] : [0, ...uleb(lim[0])])]); if (name) memIdx[name] = nMem; nMem++; }
+      else if (d[0] === 'global') { const ty = d[d.length - 1]; const mut = Array.isArray(ty) && ty[0] === 'mut'; imports.push([...str(m.text), ...str(f.text), 3, T[mut ? ty[1] : ty], mut ? 1 : 0]); if (name) globalIdx[name] = nGlobal; nGlobal++; }
+      else throw new Error('MicroWAT: unsupported import ' + d[0]);
+    }
+    for (const n of mod.slice(1)) {
+      if (n[0] === 'func') { if (isName(n[1])) funcIdx[n[1]] = nFunc; n.index = nFunc++; }
+      else if (n[0] === 'global') { if (isName(n[1])) globalIdx[n[1]] = nGlobal; n.index = nGlobal++; }
+      else if (n[0] === 'memory') { if (isName(n[1])) memIdx[n[1]] = nMem; n.index = nMem++; }
+    }
+
+    // pass 2: definitions
+    for (const n of mod.slice(1)) {
+      const k = n[0];
+      if (k === 'memory') {
+        const lim = n.filter(x => typeof x === 'string' && /^\d+$/.test(x)).map(Number);
+        mems.push(lim.length > 1 ? [1, ...uleb(lim[0]), ...uleb(lim[1])] : [0, ...uleb(lim[0])]);
+        inlineExport(n, 2, n.index);
+      } else if (k === 'global') {
+        const rest = n.slice(isName(n[1]) ? 2 : 1).filter(x => !(Array.isArray(x) && x[0] === 'export'));
+        const [ty, init] = rest; const mut = Array.isArray(ty) && ty[0] === 'mut';
+        globals.push([T[mut ? ty[1] : ty], mut ? 1 : 0, ...constExpr(init), 0x0B]);
+        inlineExport(n, 3, n.index);
+      } else if (k === 'export') {
+        const d = n[2]; const kind = { func: 0, memory: 2, global: 3 }[d[0]];
+        const map = { 0: funcIdx, 2: memIdx, 3: globalIdx }[kind];
+        exports.push({ name: n[1].text, kind, index: isName(d[1]) ? map[d[1]] : int(d[1]) });
+      } else if (k === 'data') {
+        const off = n.find(x => Array.isArray(x)); const bytes = n.filter(x => x && x.bytes).flatMap(x => x.bytes);
+        datas.push([0, ...constExpr(off), 0x0B, ...uleb(bytes.length), ...bytes]);
+      } else if (k === 'func') {
+        const items = n.slice(isName(n[1]) ? 2 : 1);
+        const s = sig(items);
+        const locals = {}; s.names.forEach((nm, i) => { if (nm) locals[nm] = i; });
+        const localTypes = []; let li = s.params.length; let bodyStart = 0;
+        for (let j = 0; j < items.length; j++) {
+          const it = items[j];
+          if (Array.isArray(it) && ['export', 'param', 'result', 'local', 'type'].includes(it[0])) {
+            if (it[0] === 'local') {
+              if (isName(it[1])) { locals[it[1]] = li++; localTypes.push(T[it[2]]); }
+              else for (const ty of it.slice(1)) { li++; localTypes.push(T[ty]); }
+            }
+            bodyStart = j + 1;
+          } else break;
+        }
+        inlineExport(items, 0, n.index);
+        const ctx = { locals, funcIdx, globalIdx, labels: [] };
+        const code = [];
+        emitSeq(items.slice(bodyStart), code, ctx);
+        code.push(0x0B);
+        const groups = []; for (const t of localTypes) { const g = groups[groups.length - 1]; if (g && g[1] === t) g[0]++; else groups.push([1, t]); }
+        const body = [...vec(groups.map(([c, t]) => [...uleb(c), t])), ...code];
+        funcs.push({ type: typeOf(s.params, s.results), body });
+      } else if (k !== 'import' && k !== 'type') throw new Error('MicroWAT: unsupported module field ' + k);
+    }
+
+    function constExpr(e) {
+      if (!Array.isArray(e)) throw new Error('MicroWAT: expected a constant expression');
+      const [op, v] = e;
+      if (op === 'i32.const') return [0x41, ...sleb(int(v) | 0)];
+      if (op === 'i64.const') return [0x42, ...sleb(BigInt(v))];
+      if (op === 'f32.const') return [0x43, ...f32b(num(v))];
+      if (op === 'f64.const') return [0x44, ...f64b(num(v))];
+      if (op === 'global.get') return [0x23, ...uleb(isName(v) ? globalIdx[v] : int(v))];
+      throw new Error('MicroWAT: unsupported constant expression ' + op);
+    }
+
+    // Instructions: a flat stream of words plus folded (op args...) lists.
+    function emitSeq(list, out, ctx) {
+      for (let i = 0; i < list.length; i++) {
+        const x = list[i];
+        if (Array.isArray(x)) { emitFolded(x, out, ctx); continue; }
+        const spec = OPS[x]; if (!spec) throw new Error('MicroWAT: unknown instruction "' + x + '"');
+        const [, kind] = spec;
+        const imm = [];
+        if (kind === 'block') { // optional $label, optional (result t)
+          if (isName(list[i + 1])) imm.push(list[++i]);
+          if (Array.isArray(list[i + 1]) && list[i + 1][0] === 'result') imm.push(list[++i]);
+        } else if (kind === 'mem') { while (typeof list[i + 1] === 'string' && /^(offset|align)=/.test(list[i + 1])) imm.push(list[++i]); }
+        else if (kind !== 'none' && kind !== 'memidx') imm.push(list[++i]);
+        emitOp(x, imm, out, ctx);
+      }
+    }
+    function emitFolded(x, out, ctx) {
+      const op = x[0];
+      if (op === 'block' || op === 'loop') {
+        let j = 1; const imm = [];
+        if (isName(x[j])) imm.push(x[j++]);
+        if (Array.isArray(x[j]) && x[j][0] === 'result') imm.push(x[j++]);
+        emitOp(op, imm, out, ctx); emitSeq(x.slice(j), out, ctx); emitOp('end', [], out, ctx); return;
+      }
+      if (op === 'if') {
+        let j = 1; const imm = [];
+        if (isName(x[j])) imm.push(x[j++]);
+        if (Array.isArray(x[j]) && x[j][0] === 'result') imm.push(x[j++]);
+        const rest = x.slice(j);
+        const thenI = rest.findIndex(y => Array.isArray(y) && y[0] === 'then');
+        const elseI = rest.findIndex(y => Array.isArray(y) && y[0] === 'else');
+        for (const c of rest.slice(0, thenI < 0 ? rest.length : thenI)) emitFolded(c, out, ctx); // condition
+        emitOp('if', imm, out, ctx);
+        if (thenI >= 0) emitSeq(rest[thenI].slice(1), out, ctx);
+        if (elseI >= 0) { emitOp('else', [], out, ctx); emitSeq(rest[elseI].slice(1), out, ctx); }
+        emitOp('end', [], out, ctx); return;
+      }
+      const spec = OPS[op]; if (!spec) throw new Error('MicroWAT: unknown instruction "' + op + '"');
+      const kind = spec[1]; let j = 1; const imm = [];
+      if (kind === 'mem') { while (typeof x[j] === 'string' && /^(offset|align)=/.test(x[j])) imm.push(x[j++]); }
+      else if (kind !== 'none' && kind !== 'memidx') imm.push(x[j++]);
+      for (const a of x.slice(j)) { if (Array.isArray(a)) emitFolded(a, out, ctx); else throw new Error('MicroWAT: stray operand "' + a + '" in (' + op + ' ...)'); }
+      emitOp(op, imm, out, ctx);
+    }
+    function emitOp(name, imm, out, ctx) {
+      const [op, kind, natAlign] = OPS[name];
+      if (op >= 0xFD00) out.push(0xFD, ...uleb(op & 0xFF)); else out.push(op);
+      const ref = (v, map, what) => { if (isName(v)) { if (!(v in map)) throw new Error('MicroWAT: unknown ' + what + ' ' + v); return map[v]; } return int(v); };
+      switch (kind) {
+        case 'none': break;
+        case 'i32': out.push(...sleb(int(imm[0]) | 0)); break;
+        case 'i64': out.push(...sleb(BigInt(imm[0]))); break;
+        case 'f32': out.push(...f32b(num(imm[0]))); break;
+        case 'f64': out.push(...f64b(num(imm[0]))); break;
+        case 'local': out.push(...uleb(ref(imm[0], ctx.locals, 'local'))); break;
+        case 'global': out.push(...uleb(ref(imm[0], ctx.globalIdx, 'global'))); break;
+        case 'func': out.push(...uleb(ref(imm[0], ctx.funcIdx, 'function'))); break;
+        case 'memidx': out.push(0x00); break;
+        case 'lane': out.push(int(imm[0])); break;
+        case 'label': {
+          const v = imm[0];
+          if (isName(v)) { const d = ctx.labels.length - 1 - ctx.labels.lastIndexOf(v); if (d > ctx.labels.length - 1) throw new Error('MicroWAT: unknown label ' + v); out.push(...uleb(d)); }
+          else out.push(...uleb(int(v)));
+          break;
+        }
+        case 'block': {
+          let label = null, bt = 0x40;
+          for (const v of imm) { if (isName(v)) label = v; else if (Array.isArray(v)) bt = T[v[1]]; }
+          out.push(bt); ctx.labels.push(label); break;
+        }
+        case 'mem': {
+          let offset = 0, align = natAlign;
+          for (const v of imm) { const [k, n] = v.split('='); if (k === 'offset') offset = int(n); else align = Math.log2(int(n)); }
+          out.push(...uleb(align), ...uleb(offset)); break;
+        }
+      }
+      if (name === 'end' && ctx.labels.length) ctx.labels.pop();
+    }
+
+    return new Uint8Array([
+      0x00, 0x61, 0x73, 0x6d, 0x01, 0x00, 0x00, 0x00,
+      ...section(1, types.map(t => [0x60, ...uleb(t.params.length), ...t.params, ...uleb(t.results.length), ...t.results])),
+      ...section(2, imports),
+      ...section(3, funcs.map(f => uleb(f.type))),
+      ...section(5, mems),
+      ...section(6, globals),
+      ...section(7, exports.map(e => [...str(e.name), e.kind, ...uleb(e.index)])),
+      ...section(10, funcs.map(f => [...uleb(f.body.length), ...f.body])),
+      ...section(11, datas),
+    ]);
+  }
+
+  const MicroWAT = { assemble, version: '2.0.0' };
+  if (typeof module === 'object' && module.exports) module.exports = MicroWAT;
+  else root.MicroWAT = MicroWAT;
+})(typeof globalThis !== 'undefined' ? globalThis : this);
+
+/* ============================================================================
+ * [INLINE 4/7] Triton 2.0 Dual Interpreters (JS Reference + MicroWAT WASM)
+ * ========================================================================== */
+// ============================================================================
+// TRITON 2.0 CONSTANTS & BALANCED-TERNARY HELPERS
+// ============================================================================
+const POW3 = [
+1, 3, 9, 27, 81, 243, 729, 2187, 6561, 19683,
+59049, 177147, 531441, 1594323, 4782969, 14348907, 43046721, 129140163, 387420489
+];
+const TRYTE_MOD = 19683;       // 3^9
+const TRYTE_HALF = 9841;       // (3^9 - 1) / 2
+const WORD_MOD_BIG = 7625597484987n; // 3^27
+const WORD_HALF_BIG = 3812798742493n; // (3^27 - 1) / 2
+function balRem(x, m, h) {
+let r = x % m;
+if (r > h) r -= m;
+else if (r < -h) r += m;
+return r === 0 ? 0 : r;
+}
+function balQuot(x, m, h) {
+let r = x % m;
+let q = Math.trunc(x / m);
+if (r > h) q += 1;
+else if (r < -h) q -= 1;
+return q === 0 ? 0 : q;
+}
+function physAddr(a) {
+let r = a % TRYTE_MOD;
+if (r < 0) r += TRYTE_MOD;
+return r === 0 ? 0 : r;
+}
+function wordSign(w0, w1, w2) {
+if (w2 !== 0) return w2 > 0 ? 1 : -1;
+if (w1 !== 0) return w1 > 0 ? 1 : -1;
+if (w0 !== 0) return w0 > 0 ? 1 : -1;
+return 0;
+}
+function unpackTryteToTrits(val, outArr, offset = 0) {
+let v = val;
+for (let i = 0; i < 9; i++) {
+const t = balRem(v, 3, 1);
+v = balQuot(v, 3, 1);
+outArr[offset + i] = t;
+}
+}
+function packTritsToTryte(inArr, offset = 0) {
+let acc = 0;
+for (let i = 8; i >= 0; i--) {
+acc = acc * 3 + inArr[offset + i];
+}
+return acc === 0 ? 0 : acc;
+}
+function wordToTrits(w0, w1, w2) {
+const trits = new Int8Array(27);
+unpackTryteToTrits(w0, trits, 0);
+unpackTryteToTrits(w1, trits, 9);
+unpackTryteToTrits(w2, trits, 18);
+return Array.from(trits);
+}
+function tritsToWord(trits) {
+return [
+packTritsToTryte(trits, 0),
+packTritsToTryte(trits, 9),
+packTritsToTryte(trits, 18)
+];
+}
+function wordToBigInt(w0, w1, w2) {
+return BigInt(w0) + BigInt(w1) * 19683n + BigInt(w2) * 387420489n;
+}
+function bigIntToWord(bigVal) {
+let r = bigVal % WORD_MOD_BIG;
+if (r > WORD_HALF_BIG) r -= WORD_MOD_BIG;
+else if (r < -WORD_HALF_BIG) r += WORD_MOD_BIG;
+let r0 = Number(r % 19683n);
+let q0 = (r - BigInt(r0)) / 19683n;
+if (r0 > 9841) { r0 -= 19683; q0 += 1n; }
+else if (r0 < -9841) { r0 += 19683; q0 -= 1n; }
+let r1 = Number(q0 % 19683n);
+let q1 = (q0 - BigInt(r1)) / 19683n;
+if (r1 > 9841) { r1 -= 19683; q1 += 1n; }
+else if (r1 < -9841) { r1 += 19683; q1 -= 1n; }
+let r2 = Number(q1);
+return [r0 === 0 ? 0 : r0, r1 === 0 ? 0 : r1, r2 === 0 ? 0 : r2];
+}
+// ============================================================================
+// 2. JAVASCRIPT REFERENCE INTERPRETER
+//    Written for clarity, operating strictly according to ISA.md.
+// ============================================================================
+class TritonJS {
+constructor() {
+this.mem = new Int16Array(TRYTE_MOD);
+this.reg = new Int16Array(27); // 9 registers * 3 trytes (w0, w1, w2)
+this.disk = new Int16Array(TRYTE_MOD);
+this.vram = new Int8Array(243 * 243);
+this.reset();
+}
+reset(keepDisk = true) {
+this.mem.fill(0);
+this.reg.fill(0);
+if (!keepDisk) this.disk.fill(0);
+this.vram.fill(0);
+this.pc = 0;
+this.sp = -1;
+this.sf = 0;
+this.cf = 0;
+this.of = 0;
+this.halted = 0;
+this.steps = 0;
+this.displayX = 0;
+this.displayY = 0;
+this.displayCmd = 0;
+this.diskAddr = 0;
+this.timerTicks = 0;
+this.inputQueue = [];
+this.inputHead = 0;
+this.ioTrace = [];
+this.consoleOut = '';
+}
+getWord(r) {
+const idx = r * 3;
+return [this.reg[idx], this.reg[idx + 1], this.reg[idx + 2]];
+}
+setWord(r, w0, w1, w2) {
+const idx = r * 3;
+this.reg[idx] = w0;
+this.reg[idx + 1] = w1;
+this.reg[idx + 2] = w2;
+}
+pushInputChar(code) {
+this.inputQueue.push(balRem(code, TRYTE_MOD, TRYTE_HALF));
+}
+pushInputString(str) {
+for (let i = 0; i < str.length; i++) {
+this.pushInputChar(str.charCodeAt(i));
+}
+}
+aluAddSub(rd, a0, a1, a2, b0, b1, b2, isSub, cin) {
+const s = isSub ? -1 : 1;
+const u0 = a0 + s * b0 + cin;
+const r0 = balRem(u0, TRYTE_MOD, TRYTE_HALF);
+const c1 = balQuot(u0, TRYTE_MOD, TRYTE_HALF);
+const u1 = a1 + s * b1 + c1;
+const r1 = balRem(u1, TRYTE_MOD, TRYTE_HALF);
+const c2 = balQuot(u1, TRYTE_MOD, TRYTE_HALF);
+const u2 = a2 + s * b2 + c2;
+const r2 = balRem(u2, TRYTE_MOD, TRYTE_HALF);
+const c3 = balQuot(u2, TRYTE_MOD, TRYTE_HALF);
+if (rd >= 0) {
+this.setWord(rd, r0, r1, r2);
+this.sf = wordSign(r0, r1, r2);
+} else {
+// CMP / CMPI: true mathematical sign of (A - B)
+this.sf = c3 !== 0 ? c3 : wordSign(r0, r1, r2);
+}
+this.cf = c3;
+this.of = c3;
+}
+aluMul(rd, a0, a1, a2, b0, b1, b2) {
+const u0 = a0 * b0;
+const l0 = balRem(u0, TRYTE_MOD, TRYTE_HALF);
+const k1 = balQuot(u0, TRYTE_MOD, TRYTE_HALF);
+const u1 = a0 * b1 + a1 * b0 + k1;
+const l1 = balRem(u1, TRYTE_MOD, TRYTE_HALF);
+const k2 = balQuot(u1, TRYTE_MOD, TRYTE_HALF);
+const u2 = a0 * b2 + a1 * b1 + a2 * b0 + k2;
+const l2 = balRem(u2, TRYTE_MOD, TRYTE_HALF);
+const k3 = balQuot(u2, TRYTE_MOD, TRYTE_HALF);
+const u3 = a1 * b2 + a2 * b1 + k3;
+const l3 = balRem(u3, TRYTE_MOD, TRYTE_HALF);
+const k4 = balQuot(u3, TRYTE_MOD, TRYTE_HALF);
+const u4 = a2 * b2 + k4;
+const l4 = balRem(u4, TRYTE_MOD, TRYTE_HALF);
+const l5 = balQuot(u4, TRYTE_MOD, TRYTE_HALF);
+this.setWord(rd, l0, l1, l2);
+this.sf = wordSign(l0, l1, l2);
+const hiSign = wordSign(l3, l4, l5);
+this.cf = hiSign;
+this.of = hiSign;
+}
+aluDivMod(rd, rs1, rs2, isMod) {
+const [a0, a1, a2] = this.getWord(rs1);
+const [b0, b1, b2] = this.getWord(rs2);
+const sa = wordSign(a0, a1, a2);
+const sb = wordSign(b0, b1, b2);
+if (sb === 0) {
+const div0Of = sa === 0 ? 1 : sa;
+if (!isMod) {
+this.setWord(rd, 0, 0, 0);
+this.sf = 0;
+} else {
+this.setWord(rd, a0, a1, a2);
+this.sf = sa;
+}
+this.cf = 0;
+this.of = div0Of;
+return;
+}
+if (sa === 0) {
+this.setWord(rd, 0, 0, 0);
+this.sf = 0;
+this.cf = 0;
+this.of = 0;
+return;
+}
+const tritsA = wordToTrits(a0, a1, a2).map(t => t * sa);
+const tritsB = wordToTrits(b0, b1, b2).map(t => t * sb);
+// Convert abs(A) and abs(B) to unsigned base-3 digits {0, 1, 2}
+const uA = new Int8Array(27);
+let borrow = 0;
+for (let i = 0; i < 27; i++) {
+let v = tritsA[i] + borrow;
+if (v < 0) { uA[i] = v + 3; borrow = -1; }
+else { uA[i] = v; borrow = 0; }
+}
+const uB = new Int8Array(28);
+borrow = 0;
+for (let i = 0; i < 27; i++) {
+let v = tritsB[i] + borrow;
+if (v < 0) { uB[i] = v + 3; borrow = -1; }
+else { uB[i] = v; borrow = 0; }
+}
+const uB2 = new Int8Array(28);
+let carry = 0;
+for (let i = 0; i < 28; i++) {
+const v = uB[i] * 2 + carry;
+uB2[i] = v % 3;
+carry = Math.trunc(v / 3);
+}
+const rem = new Int8Array(28);
+const uQ = new Int8Array(27);
+const cmpU28 = (x, y) => {
+for (let k = 27; k >= 0; k--) {
+if (x[k] !== y[k]) return x[k] > y[k] ? 1 : -1;
+}
+return 0;
+};
+const subU28 = (x, y) => {
+let b = 0;
+for (let k = 0; k < 28; k++) {
+let v = x[k] - y[k] + b;
+if (v < 0) { x[k] = v + 3; b = -1; }
+else { x[k] = v; b = 0; }
+}
+};
+for (let i = 26; i >= 0; i--) {
+for (let k = 27; k >= 1; k--) rem[k] = rem[k - 1];
+rem[0] = uA[i];
+if (cmpU28(rem, uB2) >= 0) {
+uQ[i] = 2;
+subU28(rem, uB2);
+} else if (cmpU28(rem, uB) >= 0) {
+uQ[i] = 1;
+subU28(rem, uB);
+} else {
+uQ[i] = 0;
+}
+}
+const outTrits = new Int8Array(27);
+const targetU = isMod ? rem : uQ;
+const targetSign = isMod ? sa : sa * sb;
+let c = 0;
+for (let i = 0; i < 27; i++) {
+let v = targetU[i] + c;
+if (v >= 2) { outTrits[i] = (v - 3) * targetSign; c = 1; }
+else { outTrits[i] = v * targetSign; c = 0; }
+}
+const [r0, r1, r2] = tritsToWord(outTrits);
+this.setWord(rd, r0, r1, r2);
+this.sf = wordSign(r0, r1, r2);
+this.cf = 0;
+this.of = 0;
+}
+aluTritwise(rd, rs1, rs2, mode, imm9) {
+const [a0, a1, a2] = this.getWord(rs1);
+const ta = wordToTrits(a0, a1, a2);
+const tb = mode < 5 ? wordToTrits(...this.getWord(rs2)) : null;
+const out = new Int8Array(27);
+if (mode === 5) {
+// TUNARY: low triad of imm9 is (m2, m1, m0)
+const triad = balRem(imm9, 27, 13);
+const m0 = balRem(triad, 3, 1);
+const q1 = balQuot(triad, 3, 1);
+const m1 = balRem(q1, 3, 1);
+const m2 = balQuot(q1, 3, 1);
+const lut = [m0, m1, m2];
+for (let i = 0; i < 27; i++) out[i] = lut[ta[i] + 1];
+} else {
+for (let i = 0; i < 27; i++) {
+const x = ta[i], y = tb[i];
+if (mode === 0) out[i] = x < y ? x : y; // TMIN
+else if (mode === 1) out[i] = x > y ? x : y; // TMAX
+else if (mode === 2) out[i] = x === y ? x : 0; // TCON
+else if (mode === 3) { const s = x + y; out[i] = s > 0 ? 1 : s < 0 ? -1 : 0; } // TANY
+else if (mode === 4) out[i] = balRem(x + y, 3, 1); // TXOR
+}
+}
+const [r0, r1, r2] = tritsToWord(out);
+this.setWord(rd, r0, r1, r2);
+this.sf = wordSign(r0, r1, r2);
+this.cf = 0;
+this.of = 0;
+}
+aluShift(rd, rs1, k0, k1, k2, isRight) {
+const [a0, a1, a2] = this.getWord(rs1);
+const ta = wordToTrits(a0, a1, a2);
+let k = (k1 !== 0 || k2 !== 0) ? 28 * wordSign(k0, k1, k2) : k0;
+let right = isRight;
+if (k < 0) {
+k = -k;
+right = !right;
+}
+if (k === 0) {
+this.setWord(rd, a0, a1, a2);
+this.sf = wordSign(a0, a1, a2);
+this.cf = 0;
+this.of = 0;
+return;
+}
+const out = new Int8Array(27);
+let cf = 0;
+let of = 0;
+if (!right) {
+// Shift left by k > 0
+for (let i = 0; i < 27; i++) {
+if (i - k >= 0 && i - k < 27) out[i] = ta[i - k];
+}
+cf = (k >= 1 && k <= 27) ? ta[27 - k] : 0;
+const start = Math.max(0, 27 - k);
+for (let j = 26; j >= start; j--) {
+if (ta[j] !== 0) { of = ta[j]; break; }
+}
+} else {
+// Shift right by k > 0
+for (let i = 0; i < 27; i++) {
+if (i + k >= 0 && i + k < 27) out[i] = ta[i + k];
+}
+cf = (k >= 1 && k <= 27) ? ta[k - 1] : 0;
+of = 0;
+}
+const [r0, r1, r2] = tritsToWord(out);
+this.setWord(rd, r0, r1, r2);
+this.sf = wordSign(r0, r1, r2);
+this.cf = cf;
+this.of = of;
+}
+step() {
+if (this.halted) return 0;
+const p0 = physAddr(this.pc);
+const p1 = physAddr(this.pc + 1);
+const t0 = this.mem[p0];
+const t1 = this.mem[p1];
+this.pc = balRem(this.pc + 2, TRYTE_MOD, TRYTE_HALF);
+this.steps += 1;
+this.timerTicks = balRem(this.timerTicks + 1, TRYTE_MOD, TRYTE_HALF);
+// Decode Tryte 0: op * 81 + e_d * 9 + e_1
+const e1 = balRem(t0, 9, 4);
+const q1 = balQuot(t0, 9, 4);
+const ed = balRem(q1, 9, 4);
+const op = balQuot(q1, 9, 4);
+const rs1 = (e1 + 9) % 9;
+const rd = (ed + 9) % 9;
+const e2 = balRem(t1, 9, 4);
+const rs2 = (e2 + 9) % 9;
+const imm9 = t1;
+switch (op) {
+case -1: // HALT
+this.halted = 1;
+break;
+case 0: // NOP
+break;
+case 1: // LI rd, imm9
+this.setWord(rd, imm9, 0, 0);
+this.sf = wordSign(imm9, 0, 0);
+this.cf = 0;
+this.of = 0;
+break;
+case 2: { // LUI rd, imm9
+const [w0, w1] = this.getWord(rd);
+this.setWord(rd, imm9, w0, w1);
+this.sf = wordSign(imm9, w0, w1);
+this.cf = 0;
+this.of = 0;
+break;
+}
+case 3: { // MOV rd, rs1
+const [w0, w1, w2] = this.getWord(rs1);
+this.setWord(rd, w0, w1, w2);
+this.sf = wordSign(w0, w1, w2);
+this.cf = 0;
+this.of = 0;
+break;
+}
+case 4: // ADD rd, rs1, rs2
+this.aluAddSub(rd, ...this.getWord(rs1), ...this.getWord(rs2), false, 0);
+break;
+case 5: // ADDI rd, rs1, imm9
+this.aluAddSub(rd, ...this.getWord(rs1), imm9, 0, 0, false, 0);
+break;
+case 6: // ADC rd, rs1, rs2
+this.aluAddSub(rd, ...this.getWord(rs1), ...this.getWord(rs2), false, this.cf);
+break;
+case 7: // SUB rd, rs1, rs2
+this.aluAddSub(rd, ...this.getWord(rs1), ...this.getWord(rs2), true, 0);
+break;
+case 8: // SUBI rd, rs1, imm9
+this.aluAddSub(rd, ...this.getWord(rs1), imm9, 0, 0, true, 0);
+break;
+case 9: // SBC rd, rs1, rs2
+this.aluAddSub(rd, ...this.getWord(rs1), ...this.getWord(rs2), true, this.cf);
+break;
+case 10: // MUL rd, rs1, rs2
+this.aluMul(rd, ...this.getWord(rs1), ...this.getWord(rs2));
+break;
+case 11: // MULI rd, rs1, imm9
+this.aluMul(rd, ...this.getWord(rs1), imm9, 0, 0);
+break;
+case 12: // DIV rd, rs1, rs2
+this.aluDivMod(rd, rs1, rs2, false);
+break;
+case 13: // MOD rd, rs1, rs2
+this.aluDivMod(rd, rs1, rs2, true);
+break;
+case 14: { // NEG rd, rs1
+const [w0, w1, w2] = this.getWord(rs1);
+this.setWord(rd, -w0, -w1, -w2);
+this.sf = wordSign(-w0, -w1, -w2);
+this.cf = 0;
+this.of = 0;
+break;
+}
+case 15: { // LT rd, rs1, imm9
+const [base0] = this.getWord(rs1);
+const addr = physAddr(base0 + imm9);
+const val = this.mem[addr];
+this.setWord(rd, val, 0, 0);
+this.sf = wordSign(val, 0, 0);
+this.cf = 0;
+this.of = 0;
+break;
+}
+case 16: { // ST rd, rs1, imm9
+const [val0] = this.getWord(rd);
+const [base0] = this.getWord(rs1);
+const addr = physAddr(base0 + imm9);
+this.mem[addr] = val0;
+break;
+}
+case 17: { // LW rd, rs1, imm9
+const [base0] = this.getWord(rs1);
+const a = base0 + imm9;
+const w0 = this.mem[physAddr(a)];
+const w1 = this.mem[physAddr(a + 1)];
+const w2 = this.mem[physAddr(a + 2)];
+this.setWord(rd, w0, w1, w2);
+this.sf = wordSign(w0, w1, w2);
+this.cf = 0;
+this.of = 0;
+break;
+}
+case 18: { // SW rd, rs1, imm9
+const [w0, w1, w2] = this.getWord(rd);
+const [base0] = this.getWord(rs1);
+const a = base0 + imm9;
+this.mem[physAddr(a)] = w0;
+this.mem[physAddr(a + 1)] = w1;
+this.mem[physAddr(a + 2)] = w2;
+break;
+}
+case 19: { // PUSH rs1
+const [w0, w1, w2] = this.getWord(rs1);
+this.sp = balRem(this.sp - 3, TRYTE_MOD, TRYTE_HALF);
+this.mem[physAddr(this.sp)] = w0;
+this.mem[physAddr(this.sp + 1)] = w1;
+this.mem[physAddr(this.sp + 2)] = w2;
+break;
+}
+case 20: { // POP rd
+const w0 = this.mem[physAddr(this.sp)];
+const w1 = this.mem[physAddr(this.sp + 1)];
+const w2 = this.mem[physAddr(this.sp + 2)];
+this.sp = balRem(this.sp + 3, TRYTE_MOD, TRYTE_HALF);
+this.setWord(rd, w0, w1, w2);
+this.sf = wordSign(w0, w1, w2);
+this.cf = 0;
+this.of = 0;
+break;
+}
+case 21: // JMP addr
+this.pc = imm9;
+break;
+case 22: // JN addr
+if (this.sf === -1) this.pc = imm9;
+break;
+case 23: // JZ addr
+if (this.sf === 0) this.pc = imm9;
+break;
+case 24: // JP addr
+if (this.sf === 1) this.pc = imm9;
+break;
+case 25: // JNZ addr
+if (this.sf !== 0) this.pc = imm9;
+break;
+case 26: // JNP addr
+if (this.sf !== 1) this.pc = imm9;
+break;
+case 27: // JNN addr
+if (this.sf !== -1) this.pc = imm9;
+break;
+case 28: { // JR rs1
+const [w0] = this.getWord(rs1);
+this.pc = w0;
+break;
+}
+case 29: // CALL addr
+this.sp = balRem(this.sp - 1, TRYTE_MOD, TRYTE_HALF);
+this.mem[physAddr(this.sp)] = this.pc;
+this.pc = imm9;
+break;
+case 30: // RET
+this.pc = this.mem[physAddr(this.sp)];
+this.sp = balRem(this.sp + 1, TRYTE_MOD, TRYTE_HALF);
+break;
+case 31: { // IN rd, port
+let v0 = 0;
+const port = imm9;
+if (port === 0) {
+if (this.inputHead < this.inputQueue.length) {
+v0 = this.inputQueue[this.inputHead++];
+} else {
+v0 = 0;
+}
+} else if (port === 1) {
+v0 = balRem(this.inputQueue.length - this.inputHead, TRYTE_MOD, TRYTE_HALF);
+} else if (port === 2) {
+v0 = this.displayX;
+} else if (port === 3) {
+v0 = this.displayY;
+} else if (port === 4) {
+v0 = this.vram[this.displayY * 243 + this.displayX];
+} else if (port === 5) {
+v0 = this.displayCmd;
+} else if (port === 6) {
+v0 = this.timerTicks;
+} else if (port === 7) {
+v0 = this.diskAddr;
+} else if (port === 8) {
+v0 = this.disk[this.diskAddr];
+this.diskAddr = (this.diskAddr + 1) % TRYTE_MOD;
+}
+this.setWord(rd, v0, 0, 0);
+this.sf = wordSign(v0, 0, 0);
+this.cf = 0;
+this.of = 0;
+this.ioTrace.push([this.steps, 0, port, v0, 0, 0]);
+break;
+}
+case 32: { // OUT rd, port
+const [w0, w1, w2] = this.getWord(rd);
+const port = imm9;
+if (port === 0) {
+const ch = ((w0 % 19683) + 19683) % 19683;
+this.consoleOut += String.fromCharCode(ch & 0xFFFF);
+} else if (port === 2) {
+this.displayX = ((w0 % 243) + 243) % 243;
+} else if (port === 3) {
+this.displayY = ((w0 % 243) + 243) % 243;
+} else if (port === 4) {
+const c = balRem(w0, 27, 13);
+this.vram[this.displayY * 243 + this.displayX] = c;
+} else if (port === 5) {
+const c = balRem(w0, 27, 13);
+this.displayCmd = c;
+this.vram.fill(c);
+} else if (port === 6) {
+this.timerTicks = w0;
+} else if (port === 7) {
+this.diskAddr = physAddr(w0);
+} else if (port === 8) {
+this.disk[this.diskAddr] = w0;
+this.diskAddr = (this.diskAddr + 1) % TRYTE_MOD;
+}
+this.ioTrace.push([this.steps, 1, port, w0, w1, w2]);
+break;
+}
+case -2: // CMP rs1, rs2
+this.aluAddSub(-1, ...this.getWord(rs1), ...this.getWord(rs2), true, 0);
+break;
+case -3: // CMPI rs1, imm9
+this.aluAddSub(-1, ...this.getWord(rs1), imm9, 0, 0, true, 0);
+break;
+case -4: // TMIN rd, rs1, rs2
+this.aluTritwise(rd, rs1, rs2, 0, 0);
+break;
+case -5: // TMAX rd, rs1, rs2
+this.aluTritwise(rd, rs1, rs2, 1, 0);
+break;
+case -6: // TCON rd, rs1, rs2
+this.aluTritwise(rd, rs1, rs2, 2, 0);
+break;
+case -7: // TANY rd, rs1, rs2
+this.aluTritwise(rd, rs1, rs2, 3, 0);
+break;
+case -8: // TXOR rd, rs1, rs2
+this.aluTritwise(rd, rs1, rs2, 4, 0);
+break;
+case -9: // TUNARY rd, rs1, imm9
+this.aluTritwise(rd, rs1, 0, 5, imm9);
+break;
+case -10: // SHL rd, rs1, rs2
+this.aluShift(rd, rs1, ...this.getWord(rs2), false);
+break;
+case -11: // SHLI rd, rs1, imm9
+this.aluShift(rd, rs1, imm9, 0, 0, false);
+break;
+case -12: // SHR rd, rs1, rs2
+this.aluShift(rd, rs1, ...this.getWord(rs2), true);
+break;
+case -13: // SHRI rd, rs1, imm9
+this.aluShift(rd, rs1, imm9, 0, 0, true);
+break;
+default:
+this.halted = 1;
+break;
+}
+return this.halted ? 0 : 1;
+}
+run(maxSteps = 100000) {
+let executed = 0;
+while (!this.halted && executed < maxSteps) {
+this.step();
+executed++;
+}
+return executed;
+}
+}
+// ============================================================================
+// 3. MICROWAT WEBASSEMBLY INTERPRETER SOURCE (WAT)
+//    Zero imports. Pure WebAssembly text assembled by MicroWAT.assemble().
+// ============================================================================
+const TRITON_WAT = `
+(module
+(memory (export "mem") 8)
+(func $bal_rem (param $x i32) (param $m i32) (param $h i32) (result i32)
+(local $r i32)
+(local.set $r (i32.rem_s (local.get $x) (local.get $m)))
+(if (i32.gt_s (local.get $r) (local.get $h))
+(then (local.set $r (i32.sub (local.get $r) (local.get $m)))))
+(if (i32.lt_s (local.get $r) (i32.sub (i32.const 0) (local.get $h)))
+(then (local.set $r (i32.add (local.get $r) (local.get $m)))))
+(local.get $r)
+)
+(func $bal_quot (param $x i32) (param $m i32) (param $h i32) (result i32)
+(local $r i32) (local $q i32)
+(local.set $r (i32.rem_s (local.get $x) (local.get $m)))
+(local.set $q (i32.div_s (local.get $x) (local.get $m)))
+(if (i32.gt_s (local.get $r) (local.get $h))
+(then (local.set $q (i32.add (local.get $q) (i32.const 1)))))
+(if (i32.lt_s (local.get $r) (i32.sub (i32.const 0) (local.get $h)))
+(then (local.set $q (i32.sub (local.get $q) (i32.const 1)))))
+(local.get $q)
+)
+(func $phys_addr (param $a i32) (result i32)
+(local $r i32)
+(local.set $r (i32.rem_s (local.get $a) (i32.const 19683)))
+(if (i32.lt_s (local.get $r) (i32.const 0))
+(then (local.set $r (i32.add (local.get $r) (i32.const 19683)))))
+(local.get $r)
+)
+(func $word_sign (param $w0 i32) (param $w1 i32) (param $w2 i32) (result i32)
+(if (i32.ne (local.get $w2) (i32.const 0))
+(then
+(if (result i32) (i32.gt_s (local.get $w2) (i32.const 0))
+(then (i32.const 1))
+(else (i32.const -1)))
+(return)
+))
+(if (i32.ne (local.get $w1) (i32.const 0))
+(then
+(if (result i32) (i32.gt_s (local.get $w1) (i32.const 0))
+(then (i32.const 1))
+(else (i32.const -1)))
+(return)
+))
+(if (i32.ne (local.get $w0) (i32.const 0))
+(then
+(if (result i32) (i32.gt_s (local.get $w0) (i32.const 0))
+(then (i32.const 1))
+(else (i32.const -1)))
+(return)
+))
+(i32.const 0)
+)
+(func $get_w0 (param $r i32) (result i32)
+(i32.load (i32.add (i32.const 81920) (i32.mul (local.get $r) (i32.const 12))))
+)
+(func $get_w1 (param $r i32) (result i32)
+(i32.load (i32.add (i32.const 81924) (i32.mul (local.get $r) (i32.const 12))))
+)
+(func $get_w2 (param $r i32) (result i32)
+(i32.load (i32.add (i32.const 81928) (i32.mul (local.get $r) (i32.const 12))))
+)
+(func $set_word (param $r i32) (param $w0 i32) (param $w1 i32) (param $w2 i32)
+(local $base i32)
+(local.set $base (i32.add (i32.const 81920) (i32.mul (local.get $r) (i32.const 12))))
+(i32.store (local.get $base) (local.get $w0))
+(i32.store (i32.add (local.get $base) (i32.const 4)) (local.get $w1))
+(i32.store (i32.add (local.get $base) (i32.const 8)) (local.get $w2))
+)
+(func $set_flags (param $sf i32) (param $cf i32) (param $of i32)
+(i32.store (i32.const 82184) (local.get $sf))
+(i32.store (i32.const 82188) (local.get $cf))
+(i32.store (i32.const 82192) (local.get $of))
+)
+(func $unpack_tryte (param $val i32) (param $dst i32)
+(local $i i32) (local $v i32)
+(local.set $v (local.get $val))
+(local.set $i (i32.const 0))
+(block $brk
+(loop $lp
+(br_if $brk (i32.ge_s (local.get $i) (i32.const 9)))
+(i32.store
+(i32.add (local.get $dst) (i32.shl (local.get $i) (i32.const 2)))
+(call $bal_rem (local.get $v) (i32.const 3) (i32.const 1)))
+(local.set $v (call $bal_quot (local.get $v) (i32.const 3) (i32.const 1)))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $lp)
+)
+)
+)
+(func $pack_tryte (param $src i32) (result i32)
+(local $i i32) (local $acc i32)
+(local.set $acc (i32.const 0))
+(local.set $i (i32.const 8))
+(block $brk
+(loop $lp
+(br_if $brk (i32.lt_s (local.get $i) (i32.const 0)))
+(local.set $acc
+(i32.add
+(i32.mul (local.get $acc) (i32.const 3))
+(i32.load (i32.add (local.get $src) (i32.shl (local.get $i) (i32.const 2))))))
+(local.set $i (i32.sub (local.get $i) (i32.const 1)))
+(br $lp)
+)
+)
+(local.get $acc)
+)
+(func $unpack_word (param $r i32) (param $dst i32)
+(call $unpack_tryte (call $get_w0 (local.get $r)) (local.get $dst))
+(call $unpack_tryte (call $get_w1 (local.get $r)) (i32.add (local.get $dst) (i32.const 36)))
+(call $unpack_tryte (call $get_w2 (local.get $r)) (i32.add (local.get $dst) (i32.const 72)))
+)
+(func $pack_word_to_reg (param $src i32) (param $r i32) (result i32)
+(local $w0 i32) (local $w1 i32) (local $w2 i32)
+(local.set $w0 (call $pack_tryte (local.get $src)))
+(local.set $w1 (call $pack_tryte (i32.add (local.get $src) (i32.const 36))))
+(local.set $w2 (call $pack_tryte (i32.add (local.get $src) (i32.const 72))))
+(call $set_word (local.get $r) (local.get $w0) (local.get $w1) (local.get $w2))
+(call $word_sign (local.get $w0) (local.get $w1) (local.get $w2))
+)
+(func $alu_add_sub
+(param $rd i32)
+(param $a0 i32) (param $a1 i32) (param $a2 i32)
+(param $b0 i32) (param $b1 i32) (param $b2 i32)
+(param $is_sub i32) (param $cin i32)
+(local $s i32) (local $u0 i32) (local $r0 i32) (local $c1 i32)
+(local $u1 i32) (local $r1 i32) (local $c2 i32)
+(local $u2 i32) (local $r2 i32) (local $c3 i32) (local $sf i32)
+(local.set $s (if (result i32) (local.get $is_sub) (then (i32.const -1)) (else (i32.const 1))))
+(local.set $u0 (i32.add (i32.add (local.get $a0) (i32.mul (local.get $s) (local.get $b0))) (local.get $cin)))
+(local.set $r0 (call $bal_rem (local.get $u0) (i32.const 19683) (i32.const 9841)))
+(local.set $c1 (call $bal_quot (local.get $u0) (i32.const 19683) (i32.const 9841)))
+(local.set $u1 (i32.add (i32.add (local.get $a1) (i32.mul (local.get $s) (local.get $b1))) (local.get $c1)))
+(local.set $r1 (call $bal_rem (local.get $u1) (i32.const 19683) (i32.const 9841)))
+(local.set $c2 (call $bal_quot (local.get $u1) (i32.const 19683) (i32.const 9841)))
+(local.set $u2 (i32.add (i32.add (local.get $a2) (i32.mul (local.get $s) (local.get $b2))) (local.get $c2)))
+(local.set $r2 (call $bal_rem (local.get $u2) (i32.const 19683) (i32.const 9841)))
+(local.set $c3 (call $bal_quot (local.get $u2) (i32.const 19683) (i32.const 9841)))
+(local.set $sf (call $word_sign (local.get $r0) (local.get $r1) (local.get $r2)))
+(if (i32.ge_s (local.get $rd) (i32.const 0))
+(then
+(call $set_word (local.get $rd) (local.get $r0) (local.get $r1) (local.get $r2))
+(call $set_flags (local.get $sf) (local.get $c3) (local.get $c3))
+)
+(else
+(if (i32.ne (local.get $c3) (i32.const 0))
+(then (local.set $sf (local.get $c3))))
+(call $set_flags (local.get $sf) (local.get $c3) (local.get $c3))
+)
+)
+)
+(func $alu_mul
+(param $rd i32)
+(param $a0 i32) (param $a1 i32) (param $a2 i32)
+(param $b0 i32) (param $b1 i32) (param $b2 i32)
+(local $u0 i32) (local $l0 i32) (local $k1 i32)
+(local $u1 i32) (local $l1 i32) (local $k2 i32)
+(local $u2 i32) (local $l2 i32) (local $k3 i32)
+(local $u3 i32) (local $l3 i32) (local $k4 i32)
+(local $u4 i32) (local $l4 i32) (local $l5 i32)
+(local $hi i32)
+(local.set $u0 (i32.mul (local.get $a0) (local.get $b0)))
+(local.set $l0 (call $bal_rem (local.get $u0) (i32.const 19683) (i32.const 9841)))
+(local.set $k1 (call $bal_quot (local.get $u0) (i32.const 19683) (i32.const 9841)))
+(local.set $u1 (i32.add (i32.add (i32.mul (local.get $a0) (local.get $b1)) (i32.mul (local.get $a1) (local.get $b0))) (local.get $k1)))
+(local.set $l1 (call $bal_rem (local.get $u1) (i32.const 19683) (i32.const 9841)))
+(local.set $k2 (call $bal_quot (local.get $u1) (i32.const 19683) (i32.const 9841)))
+(local.set $u2 (i32.add (i32.add (i32.add (i32.mul (local.get $a0) (local.get $b2)) (i32.mul (local.get $a1) (local.get $b1))) (i32.mul (local.get $a2) (local.get $b0))) (local.get $k2)))
+(local.set $l2 (call $bal_rem (local.get $u2) (i32.const 19683) (i32.const 9841)))
+(local.set $k3 (call $bal_quot (local.get $u2) (i32.const 19683) (i32.const 9841)))
+(local.set $u3 (i32.add (i32.add (i32.mul (local.get $a1) (local.get $b2)) (i32.mul (local.get $a2) (local.get $b1))) (local.get $k3)))
+(local.set $l3 (call $bal_rem (local.get $u3) (i32.const 19683) (i32.const 9841)))
+(local.set $k4 (call $bal_quot (local.get $u3) (i32.const 19683) (i32.const 9841)))
+(local.set $u4 (i32.add (i32.mul (local.get $a2) (local.get $b2)) (local.get $k4)))
+(local.set $l4 (call $bal_rem (local.get $u4) (i32.const 19683) (i32.const 9841)))
+(local.set $l5 (call $bal_quot (local.get $u4) (i32.const 19683) (i32.const 9841)))
+(call $set_word (local.get $rd) (local.get $l0) (local.get $l1) (local.get $l2))
+(local.set $hi (call $word_sign (local.get $l3) (local.get $l4) (local.get $l5)))
+(call $set_flags (call $word_sign (local.get $l0) (local.get $l1) (local.get $l2)) (local.get $hi) (local.get $hi))
+)
+(func $cmp_u28 (param $x i32) (param $y i32) (result i32)
+(local $k i32) (local $vx i32) (local $vy i32)
+(local.set $k (i32.const 27))
+(block $brk
+(loop $lp
+(br_if $brk (i32.lt_s (local.get $k) (i32.const 0)))
+(local.set $vx (i32.load (i32.add (local.get $x) (i32.shl (local.get $k) (i32.const 2)))))
+(local.set $vy (i32.load (i32.add (local.get $y) (i32.shl (local.get $k) (i32.const 2)))))
+(if (i32.ne (local.get $vx) (local.get $vy))
+(then
+(if (result i32) (i32.gt_s (local.get $vx) (local.get $vy))
+(then (i32.const 1))
+(else (i32.const -1)))
+(return)
+))
+(local.set $k (i32.sub (local.get $k) (i32.const 1)))
+(br $lp)
+)
+)
+(i32.const 0)
+)
+(func $sub_u28 (param $x i32) (param $y i32)
+(local $k i32) (local $b i32) (local $v i32) (local $addr i32)
+(local.set $k (i32.const 0))
+(local.set $b (i32.const 0))
+(block $brk
+(loop $lp
+(br_if $brk (i32.ge_s (local.get $k) (i32.const 28)))
+(local.set $addr (i32.add (local.get $x) (i32.shl (local.get $k) (i32.const 2))))
+(local.set $v
+(i32.add
+(i32.sub
+(i32.load (local.get $addr))
+(i32.load (i32.add (local.get $y) (i32.shl (local.get $k) (i32.const 2)))))
+(local.get $b)))
+(if (i32.lt_s (local.get $v) (i32.const 0))
+(then
+(i32.store (local.get $addr) (i32.add (local.get $v) (i32.const 3)))
+(local.set $b (i32.const -1))
+)
+(else
+(i32.store (local.get $addr) (local.get $v))
+(local.set $b (i32.const 0))
+))
+(local.set $k (i32.add (local.get $k) (i32.const 1)))
+(br $lp)
+)
+)
+)
+(func $alu_divmod (param $rd i32) (param $rs1 i32) (param $rs2 i32) (param $is_mod i32)
+(local $a0 i32) (local $a1 i32) (local $a2 i32)
+(local $b0 i32) (local $b1 i32) (local $b2 i32)
+(local $sa i32) (local $sb i32) (local $div0_of i32)
+(local $i i32) (local $k i32) (local $v i32) (local $borrow i32) (local $carry i32)
+(local $tsign i32) (local $src_buf i32)
+;; Scratch addresses:
+;; BufA (82432): uA[0..27]
+;; BufB (82656): uB[0..27], and 82768: uB2[0..27]
+;; BufR (82880): rem[0..27]
+;; BufQ (83104): uQ[0..27]
+(local.set $a0 (call $get_w0 (local.get $rs1)))
+(local.set $a1 (call $get_w1 (local.get $rs1)))
+(local.set $a2 (call $get_w2 (local.get $rs1)))
+(local.set $b0 (call $get_w0 (local.get $rs2)))
+(local.set $b1 (call $get_w1 (local.get $rs2)))
+(local.set $b2 (call $get_w2 (local.get $rs2)))
+(local.set $sa (call $word_sign (local.get $a0) (local.get $a1) (local.get $a2)))
+(local.set $sb (call $word_sign (local.get $b0) (local.get $b1) (local.get $b2)))
+(if (i32.eqz (local.get $sb))
+(then
+(local.set $div0_of (if (result i32) (i32.eqz (local.get $sa)) (then (i32.const 1)) (else (local.get $sa))))
+(if (local.get $is_mod)
+(then
+(call $set_word (local.get $rd) (local.get $a0) (local.get $a1) (local.get $a2))
+(call $set_flags (local.get $sa) (i32.const 0) (local.get $div0_of))
+)
+(else
+(call $set_word (local.get $rd) (i32.const 0) (i32.const 0) (i32.const 0))
+(call $set_flags (i32.const 0) (i32.const 0) (local.get $div0_of))
+))
+(return)
+))
+(if (i32.eqz (local.get $sa))
+(then
+(call $set_word (local.get $rd) (i32.const 0) (i32.const 0) (i32.const 0))
+(call $set_flags (i32.const 0) (i32.const 0) (i32.const 0))
+(return)
+))
+(call $unpack_word (local.get $rs1) (i32.const 82432))
+(call $unpack_word (local.get $rs2) (i32.const 82656))
+;; Convert abs(A) in 82432 to unsigned base-3
+(local.set $borrow (i32.const 0))
+(local.set $i (i32.const 0))
+(block $brk1
+(loop $lp1
+(br_if $brk1 (i32.ge_s (local.get $i) (i32.const 27)))
+(local.set $v
+(i32.add
+(i32.mul (i32.load (i32.add (i32.const 82432) (i32.shl (local.get $i) (i32.const 2)))) (local.get $sa))
+(local.get $borrow)))
+(if (i32.lt_s (local.get $v) (i32.const 0))
+(then
+(i32.store (i32.add (i32.const 82432) (i32.shl (local.get $i) (i32.const 2))) (i32.add (local.get $v) (i32.const 3)))
+(local.set $borrow (i32.const -1))
+)
+(else
+(i32.store (i32.add (i32.const 82432) (i32.shl (local.get $i) (i32.const 2))) (local.get $v))
+(local.set $borrow (i32.const 0))
+))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $lp1)
+)
+)
+;; Convert abs(B) in 82656 to unsigned base-3 (28 digits)
+(local.set $borrow (i32.const 0))
+(local.set $i (i32.const 0))
+(block $brk2
+(loop $lp2
+(br_if $brk2 (i32.ge_s (local.get $i) (i32.const 27)))
+(local.set $v
+(i32.add
+(i32.mul (i32.load (i32.add (i32.const 82656) (i32.shl (local.get $i) (i32.const 2)))) (local.get $sb))
+(local.get $borrow)))
+(if (i32.lt_s (local.get $v) (i32.const 0))
+(then
+(i32.store (i32.add (i32.const 82656) (i32.shl (local.get $i) (i32.const 2))) (i32.add (local.get $v) (i32.const 3)))
+(local.set $borrow (i32.const -1))
+)
+(else
+(i32.store (i32.add (i32.const 82656) (i32.shl (local.get $i) (i32.const 2))) (local.get $v))
+(local.set $borrow (i32.const 0))
+))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $lp2)
+)
+)
+(i32.store (i32.add (i32.const 82656) (i32.const 108)) (i32.const 0))
+;; Compute uB2 at 82768 (28 digits) and zero rem (82880) and uQ (83104)
+(local.set $carry (i32.const 0))
+(local.set $i (i32.const 0))
+(block $brk3
+(loop $lp3
+(br_if $brk3 (i32.ge_s (local.get $i) (i32.const 28)))
+(local.set $v
+(i32.add
+(i32.mul (i32.load (i32.add (i32.const 82656) (i32.shl (local.get $i) (i32.const 2)))) (i32.const 2))
+(local.get $carry)))
+(i32.store (i32.add (i32.const 82768) (i32.shl (local.get $i) (i32.const 2))) (i32.rem_s (local.get $v) (i32.const 3)))
+(local.set $carry (i32.div_s (local.get $v) (i32.const 3)))
+(i32.store (i32.add (i32.const 82880) (i32.shl (local.get $i) (i32.const 2))) (i32.const 0))
+(i32.store (i32.add (i32.const 83104) (i32.shl (local.get $i) (i32.const 2))) (i32.const 0))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $lp3)
+)
+)
+;; Base-3 long division i = 26 down to 0
+(local.set $i (i32.const 26))
+(block $brk4
+(loop $lp4
+(br_if $brk4 (i32.lt_s (local.get $i) (i32.const 0)))
+;; Shift rem[27..1] = rem[26..0]
+(local.set $k (i32.const 27))
+(block $sbrk
+(loop $slp
+(br_if $sbrk (i32.lt_s (local.get $k) (i32.const 1)))
+(i32.store
+(i32.add (i32.const 82880) (i32.shl (local.get $k) (i32.const 2)))
+(i32.load (i32.add (i32.const 82880) (i32.shl (i32.sub (local.get $k) (i32.const 1)) (i32.const 2)))))
+(local.set $k (i32.sub (local.get $k) (i32.const 1)))
+(br $slp)
+)
+)
+(i32.store (i32.const 82880) (i32.load (i32.add (i32.const 82432) (i32.shl (local.get $i) (i32.const 2)))))
+(if (i32.ge_s (call $cmp_u28 (i32.const 82880) (i32.const 82768)) (i32.const 0))
+(then
+(i32.store (i32.add (i32.const 83104) (i32.shl (local.get $i) (i32.const 2))) (i32.const 2))
+(call $sub_u28 (i32.const 82880) (i32.const 82768))
+)
+(else
+(if (i32.ge_s (call $cmp_u28 (i32.const 82880) (i32.const 82656)) (i32.const 0))
+(then
+(i32.store (i32.add (i32.const 83104) (i32.shl (local.get $i) (i32.const 2))) (i32.const 1))
+(call $sub_u28 (i32.const 82880) (i32.const 82656))
+)
+(else
+(i32.store (i32.add (i32.const 83104) (i32.shl (local.get $i) (i32.const 2))) (i32.const 0))
+))
+))
+(local.set $i (i32.sub (local.get $i) (i32.const 1)))
+(br $lp4)
+)
+)
+;; Convert target unsigned base-3 buffer (82880 for mod, 83104 for div) to balanced trits in 82432
+(local.set $src_buf (if (result i32) (local.get $is_mod) (then (i32.const 82880)) (else (i32.const 83104))))
+(local.set $tsign (if (result i32) (local.get $is_mod) (then (local.get $sa)) (else (i32.mul (local.get $sa) (local.get $sb)))))
+(local.set $carry (i32.const 0))
+(local.set $i (i32.const 0))
+(block $brk5
+(loop $lp5
+(br_if $brk5 (i32.ge_s (local.get $i) (i32.const 27)))
+(local.set $v
+(i32.add
+(i32.load (i32.add (local.get $src_buf) (i32.shl (local.get $i) (i32.const 2))))
+(local.get $carry)))
+(if (i32.ge_s (local.get $v) (i32.const 2))
+(then
+(i32.store
+(i32.add (i32.const 82432) (i32.shl (local.get $i) (i32.const 2)))
+(i32.mul (i32.sub (local.get $v) (i32.const 3)) (local.get $tsign)))
+(local.set $carry (i32.const 1))
+)
+(else
+(i32.store
+(i32.add (i32.const 82432) (i32.shl (local.get $i) (i32.const 2)))
+(i32.mul (local.get $v) (local.get $tsign)))
+(local.set $carry (i32.const 0))
+))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $lp5)
+)
+)
+(call $set_flags (call $pack_word_to_reg (i32.const 82432) (local.get $rd)) (i32.const 0) (i32.const 0))
+)
+(func $alu_tritwise (param $rd i32) (param $rs1 i32) (param $rs2 i32) (param $mode i32) (param $imm9 i32)
+(local $i i32) (local $x i32) (local $y i32) (local $r i32)
+(local $triad i32) (local $m0 i32) (local $m1 i32) (local $m2 i32) (local $q1 i32)
+(call $unpack_word (local.get $rs1) (i32.const 82432))
+(if (i32.lt_s (local.get $mode) (i32.const 5))
+(then (call $unpack_word (local.get $rs2) (i32.const 82656)))
+(else
+(local.set $triad (call $bal_rem (local.get $imm9) (i32.const 27) (i32.const 13)))
+(local.set $m0 (call $bal_rem (local.get $triad) (i32.const 3) (i32.const 1)))
+(local.set $q1 (call $bal_quot (local.get $triad) (i32.const 3) (i32.const 1)))
+(local.set $m1 (call $bal_rem (local.get $q1) (i32.const 3) (i32.const 1)))
+(local.set $m2 (call $bal_quot (local.get $q1) (i32.const 3) (i32.const 1)))
+))
+(local.set $i (i32.const 0))
+(block $brk
+(loop $lp
+(br_if $brk (i32.ge_s (local.get $i) (i32.const 27)))
+(local.set $x (i32.load (i32.add (i32.const 82432) (i32.shl (local.get $i) (i32.const 2)))))
+(if (i32.eq (local.get $mode) (i32.const 5))
+(then
+(if (i32.eq (local.get $x) (i32.const -1)) (then (local.set $r (local.get $m0))))
+(if (i32.eq (local.get $x) (i32.const 0)) (then (local.set $r (local.get $m1))))
+(if (i32.eq (local.get $x) (i32.const 1)) (then (local.set $r (local.get $m2))))
+)
+(else
+(local.set $y (i32.load (i32.add (i32.const 82656) (i32.shl (local.get $i) (i32.const 2)))))
+(if (i32.eq (local.get $mode) (i32.const 0))
+(then (local.set $r (if (result i32) (i32.lt_s (local.get $x) (local.get $y)) (then (local.get $x)) (else (local.get $y))))))
+(if (i32.eq (local.get $mode) (i32.const 1))
+(then (local.set $r (if (result i32) (i32.gt_s (local.get $x) (local.get $y)) (then (local.get $x)) (else (local.get $y))))))
+(if (i32.eq (local.get $mode) (i32.const 2))
+(then (local.set $r (if (result i32) (i32.eq (local.get $x) (local.get $y)) (then (local.get $x)) (else (i32.const 0))))))
+(if (i32.eq (local.get $mode) (i32.const 3))
+(then
+(local.set $r (i32.add (local.get $x) (local.get $y)))
+(if (i32.gt_s (local.get $r) (i32.const 0)) (then (local.set $r (i32.const 1))))
+(if (i32.lt_s (local.get $r) (i32.const 0)) (then (local.set $r (i32.const -1))))
+))
+(if (i32.eq (local.get $mode) (i32.const 4))
+(then (local.set $r (call $bal_rem (i32.add (local.get $x) (local.get $y)) (i32.const 3) (i32.const 1)))))
+))
+(i32.store (i32.add (i32.const 82880) (i32.shl (local.get $i) (i32.const 2))) (local.get $r))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $lp)
+)
+)
+(call $set_flags (call $pack_word_to_reg (i32.const 82880) (local.get $rd)) (i32.const 0) (i32.const 0))
+)
+(func $alu_shift (param $rd i32) (param $rs1 i32) (param $k0 i32) (param $k1 i32) (param $k2 i32) (param $is_right i32)
+(local $k i32) (local $right i32) (local $i i32) (local $src_i i32)
+(local $cf i32) (local $of i32) (local $start i32) (local $t i32)
+(call $unpack_word (local.get $rs1) (i32.const 82432))
+(local.set $k
+(if (result i32) (i32.or (i32.ne (local.get $k1) (i32.const 0)) (i32.ne (local.get $k2) (i32.const 0)))
+(then (i32.mul (i32.const 28) (call $word_sign (local.get $k0) (local.get $k1) (local.get $k2))))
+(else (local.get $k0))))
+(local.set $right (local.get $is_right))
+(if (i32.lt_s (local.get $k) (i32.const 0))
+(then
+(local.set $k (i32.sub (i32.const 0) (local.get $k)))
+(local.set $right (i32.eqz (local.get $right)))
+))
+(if (i32.eqz (local.get $k))
+(then
+(call $set_flags (call $pack_word_to_reg (i32.const 82432) (local.get $rd)) (i32.const 0) (i32.const 0))
+(return)
+))
+(local.set $cf (i32.const 0))
+(local.set $of (i32.const 0))
+(if (i32.eqz (local.get $right))
+(then
+;; Shift left by k > 0
+(local.set $i (i32.const 0))
+(block $brk1
+(loop $lp1
+(br_if $brk1 (i32.ge_s (local.get $i) (i32.const 27)))
+(local.set $src_i (i32.sub (local.get $i) (local.get $k)))
+(if (i32.and (i32.ge_s (local.get $src_i) (i32.const 0)) (i32.lt_s (local.get $src_i) (i32.const 27)))
+(then
+(i32.store
+(i32.add (i32.const 82880) (i32.shl (local.get $i) (i32.const 2)))
+(i32.load (i32.add (i32.const 82432) (i32.shl (local.get $src_i) (i32.const 2)))))
+)
+(else
+(i32.store (i32.add (i32.const 82880) (i32.shl (local.get $i) (i32.const 2))) (i32.const 0))
+))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $lp1)
+)
+)
+(if (i32.and (i32.ge_s (local.get $k) (i32.const 1)) (i32.le_s (local.get $k) (i32.const 27)))
+(then
+(local.set $cf (i32.load (i32.add (i32.const 82432) (i32.shl (i32.sub (i32.const 27) (local.get $k)) (i32.const 2)))))
+))
+(local.set $start (i32.sub (i32.const 27) (local.get $k)))
+(if (i32.lt_s (local.get $start) (i32.const 0)) (then (local.set $start (i32.const 0))))
+(local.set $i (i32.const 26))
+(block $brk2
+(loop $lp2
+(br_if $brk2 (i32.lt_s (local.get $i) (local.get $start)))
+(local.set $t (i32.load (i32.add (i32.const 82432) (i32.shl (local.get $i) (i32.const 2)))))
+(if (i32.ne (local.get $t) (i32.const 0))
+(then
+(local.set $of (local.get $t))
+(br $brk2)
+))
+(local.set $i (i32.sub (local.get $i) (i32.const 1)))
+(br $lp2)
+)
+)
+)
+(else
+;; Shift right by k > 0
+(local.set $i (i32.const 0))
+(block $brk3
+(loop $lp3
+(br_if $brk3 (i32.ge_s (local.get $i) (i32.const 27)))
+(local.set $src_i (i32.add (local.get $i) (local.get $k)))
+(if (i32.and (i32.ge_s (local.get $src_i) (i32.const 0)) (i32.lt_s (local.get $src_i) (i32.const 27)))
+(then
+(i32.store
+(i32.add (i32.const 82880) (i32.shl (local.get $i) (i32.const 2)))
+(i32.load (i32.add (i32.const 82432) (i32.shl (local.get $src_i) (i32.const 2)))))
+)
+(else
+(i32.store (i32.add (i32.const 82880) (i32.shl (local.get $i) (i32.const 2))) (i32.const 0))
+))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $lp3)
+)
+)
+(if (i32.and (i32.ge_s (local.get $k) (i32.const 1)) (i32.le_s (local.get $k) (i32.const 27)))
+(then
+(local.set $cf (i32.load (i32.add (i32.const 82432) (i32.shl (i32.sub (local.get $k) (i32.const 1)) (i32.const 2)))))
+))
+))
+(call $set_flags (call $pack_word_to_reg (i32.const 82880) (local.get $rd)) (local.get $cf) (local.get $of))
+)
+(func $log_io (param $dir i32) (param $port i32) (param $w0 i32) (param $w1 i32) (param $w2 i32)
+(local $idx i32) (local $base i32)
+(local.set $idx (i32.load (i32.const 82224)))
+(if (i32.lt_s (local.get $idx) (i32.const 10900))
+(then
+(local.set $base (i32.add (i32.const 262144) (i32.mul (local.get $idx) (i32.const 24))))
+(i32.store (local.get $base) (i32.load (i32.const 82200)))
+(i32.store (i32.add (local.get $base) (i32.const 4)) (local.get $dir))
+(i32.store (i32.add (local.get $base) (i32.const 8)) (local.get $port))
+(i32.store (i32.add (local.get $base) (i32.const 12)) (local.get $w0))
+(i32.store (i32.add (local.get $base) (i32.const 16)) (local.get $w1))
+(i32.store (i32.add (local.get $base) (i32.const 20)) (local.get $w2))
+(i32.store (i32.const 82224) (i32.add (local.get $idx) (i32.const 1)))
+))
+)
+(func $step (export "step") (result i32)
+(local $pc i32) (local $t0 i32) (local $t1 i32)
+(local $e1 i32) (local $q1 i32) (local $ed i32) (local $op i32)
+(local $rs1 i32) (local $rd i32) (local $rs2 i32) (local $imm9 i32)
+(local $w0 i32) (local $w1 i32) (local $w2 i32) (local $addr i32)
+(local $sp i32) (local $i i32)
+(if (i32.load (i32.const 82196)) (then (return (i32.const 0))))
+(local.set $pc (i32.load (i32.const 82176)))
+(local.set $t0 (i32.load (i32.shl (call $phys_addr (local.get $pc)) (i32.const 2))))
+(local.set $t1 (i32.load (i32.shl (call $phys_addr (i32.add (local.get $pc) (i32.const 1))) (i32.const 2))))
+(i32.store (i32.const 82176) (call $bal_rem (i32.add (local.get $pc) (i32.const 2)) (i32.const 19683) (i32.const 9841)))
+(i32.store (i32.const 82200) (i32.add (i32.load (i32.const 82200)) (i32.const 1)))
+(i32.store (i32.const 82228) (call $bal_rem (i32.add (i32.load (i32.const 82228)) (i32.const 1)) (i32.const 19683) (i32.const 9841)))
+(local.set $e1 (call $bal_rem (local.get $t0) (i32.const 9) (i32.const 4)))
+(local.set $q1 (call $bal_quot (local.get $t0) (i32.const 9) (i32.const 4)))
+(local.set $ed (call $bal_rem (local.get $q1) (i32.const 9) (i32.const 4)))
+(local.set $op (call $bal_quot (local.get $q1) (i32.const 9) (i32.const 4)))
+(local.set $rs1 (i32.rem_s (i32.add (local.get $e1) (i32.const 9)) (i32.const 9)))
+(local.set $rd (i32.rem_s (i32.add (local.get $ed) (i32.const 9)) (i32.const 9)))
+(local.set $rs2 (i32.rem_s (i32.add (call $bal_rem (local.get $t1) (i32.const 9) (i32.const 4)) (i32.const 9)) (i32.const 9)))
+(local.set $imm9 (local.get $t1))
+(block $done
+(if (i32.eq (local.get $op) (i32.const -1)) (then (i32.store (i32.const 82196) (i32.const 1)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 0)) (then (br $done)))
+(if (i32.eq (local.get $op) (i32.const 1))
+(then
+(call $set_word (local.get $rd) (local.get $imm9) (i32.const 0) (i32.const 0))
+(call $set_flags (call $word_sign (local.get $imm9) (i32.const 0) (i32.const 0)) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 2))
+(then
+(local.set $w0 (call $get_w0 (local.get $rd)))
+(local.set $w1 (call $get_w1 (local.get $rd)))
+(call $set_word (local.get $rd) (local.get $imm9) (local.get $w0) (local.get $w1))
+(call $set_flags (call $word_sign (local.get $imm9) (local.get $w0) (local.get $w1)) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 3))
+(then
+(local.set $w0 (call $get_w0 (local.get $rs1)))
+(local.set $w1 (call $get_w1 (local.get $rs1)))
+(local.set $w2 (call $get_w2 (local.get $rs1)))
+(call $set_word (local.get $rd) (local.get $w0) (local.get $w1) (local.get $w2))
+(call $set_flags (call $word_sign (local.get $w0) (local.get $w1) (local.get $w2)) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 4))
+(then
+(call $alu_add_sub (local.get $rd)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(call $get_w0 (local.get $rs2)) (call $get_w1 (local.get $rs2)) (call $get_w2 (local.get $rs2))
+(i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 5))
+(then
+(call $alu_add_sub (local.get $rd)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(local.get $imm9) (i32.const 0) (i32.const 0)
+(i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 6))
+(then
+(call $alu_add_sub (local.get $rd)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(call $get_w0 (local.get $rs2)) (call $get_w1 (local.get $rs2)) (call $get_w2 (local.get $rs2))
+(i32.const 0) (i32.load (i32.const 82188)))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 7))
+(then
+(call $alu_add_sub (local.get $rd)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(call $get_w0 (local.get $rs2)) (call $get_w1 (local.get $rs2)) (call $get_w2 (local.get $rs2))
+(i32.const 1) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 8))
+(then
+(call $alu_add_sub (local.get $rd)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(local.get $imm9) (i32.const 0) (i32.const 0)
+(i32.const 1) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 9))
+(then
+(call $alu_add_sub (local.get $rd)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(call $get_w0 (local.get $rs2)) (call $get_w1 (local.get $rs2)) (call $get_w2 (local.get $rs2))
+(i32.const 1) (i32.load (i32.const 82188)))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 10))
+(then
+(call $alu_mul (local.get $rd)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(call $get_w0 (local.get $rs2)) (call $get_w1 (local.get $rs2)) (call $get_w2 (local.get $rs2)))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 11))
+(then
+(call $alu_mul (local.get $rd)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(local.get $imm9) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 12))
+(then (call $alu_divmod (local.get $rd) (local.get $rs1) (local.get $rs2) (i32.const 0)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 13))
+(then (call $alu_divmod (local.get $rd) (local.get $rs1) (local.get $rs2) (i32.const 1)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 14))
+(then
+(local.set $w0 (i32.sub (i32.const 0) (call $get_w0 (local.get $rs1))))
+(local.set $w1 (i32.sub (i32.const 0) (call $get_w1 (local.get $rs1))))
+(local.set $w2 (i32.sub (i32.const 0) (call $get_w2 (local.get $rs1))))
+(call $set_word (local.get $rd) (local.get $w0) (local.get $w1) (local.get $w2))
+(call $set_flags (call $word_sign (local.get $w0) (local.get $w1) (local.get $w2)) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 15))
+(then
+(local.set $addr (call $phys_addr (i32.add (call $get_w0 (local.get $rs1)) (local.get $imm9))))
+(local.set $w0 (i32.load (i32.shl (local.get $addr) (i32.const 2))))
+(call $set_word (local.get $rd) (local.get $w0) (i32.const 0) (i32.const 0))
+(call $set_flags (call $word_sign (local.get $w0) (i32.const 0) (i32.const 0)) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 16))
+(then
+(local.set $addr (call $phys_addr (i32.add (call $get_w0 (local.get $rs1)) (local.get $imm9))))
+(i32.store (i32.shl (local.get $addr) (i32.const 2)) (call $get_w0 (local.get $rd)))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 17))
+(then
+(local.set $addr (i32.add (call $get_w0 (local.get $rs1)) (local.get $imm9)))
+(local.set $w0 (i32.load (i32.shl (call $phys_addr (local.get $addr)) (i32.const 2))))
+(local.set $w1 (i32.load (i32.shl (call $phys_addr (i32.add (local.get $addr) (i32.const 1))) (i32.const 2))))
+(local.set $w2 (i32.load (i32.shl (call $phys_addr (i32.add (local.get $addr) (i32.const 2))) (i32.const 2))))
+(call $set_word (local.get $rd) (local.get $w0) (local.get $w1) (local.get $w2))
+(call $set_flags (call $word_sign (local.get $w0) (local.get $w1) (local.get $w2)) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 18))
+(then
+(local.set $addr (i32.add (call $get_w0 (local.get $rs1)) (local.get $imm9)))
+(i32.store (i32.shl (call $phys_addr (local.get $addr)) (i32.const 2)) (call $get_w0 (local.get $rd)))
+(i32.store (i32.shl (call $phys_addr (i32.add (local.get $addr) (i32.const 1))) (i32.const 2)) (call $get_w1 (local.get $rd)))
+(i32.store (i32.shl (call $phys_addr (i32.add (local.get $addr) (i32.const 2))) (i32.const 2)) (call $get_w2 (local.get $rd)))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 19))
+(then
+(local.set $sp (call $bal_rem (i32.sub (i32.load (i32.const 82180)) (i32.const 3)) (i32.const 19683) (i32.const 9841)))
+(i32.store (i32.const 82180) (local.get $sp))
+(i32.store (i32.shl (call $phys_addr (local.get $sp)) (i32.const 2)) (call $get_w0 (local.get $rs1)))
+(i32.store (i32.shl (call $phys_addr (i32.add (local.get $sp) (i32.const 1))) (i32.const 2)) (call $get_w1 (local.get $rs1)))
+(i32.store (i32.shl (call $phys_addr (i32.add (local.get $sp) (i32.const 2))) (i32.const 2)) (call $get_w2 (local.get $rs1)))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 20))
+(then
+(local.set $sp (i32.load (i32.const 82180)))
+(local.set $w0 (i32.load (i32.shl (call $phys_addr (local.get $sp)) (i32.const 2))))
+(local.set $w1 (i32.load (i32.shl (call $phys_addr (i32.add (local.get $sp) (i32.const 1))) (i32.const 2))))
+(local.set $w2 (i32.load (i32.shl (call $phys_addr (i32.add (local.get $sp) (i32.const 2))) (i32.const 2))))
+(i32.store (i32.const 82180) (call $bal_rem (i32.add (local.get $sp) (i32.const 3)) (i32.const 19683) (i32.const 9841)))
+(call $set_word (local.get $rd) (local.get $w0) (local.get $w1) (local.get $w2))
+(call $set_flags (call $word_sign (local.get $w0) (local.get $w1) (local.get $w2)) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 21)) (then (i32.store (i32.const 82176) (local.get $imm9)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 22))
+(then (if (i32.eq (i32.load (i32.const 82184)) (i32.const -1)) (then (i32.store (i32.const 82176) (local.get $imm9)))) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 23))
+(then (if (i32.eq (i32.load (i32.const 82184)) (i32.const 0)) (then (i32.store (i32.const 82176) (local.get $imm9)))) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 24))
+(then (if (i32.eq (i32.load (i32.const 82184)) (i32.const 1)) (then (i32.store (i32.const 82176) (local.get $imm9)))) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 25))
+(then (if (i32.ne (i32.load (i32.const 82184)) (i32.const 0)) (then (i32.store (i32.const 82176) (local.get $imm9)))) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 26))
+(then (if (i32.ne (i32.load (i32.const 82184)) (i32.const 1)) (then (i32.store (i32.const 82176) (local.get $imm9)))) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 27))
+(then (if (i32.ne (i32.load (i32.const 82184)) (i32.const -1)) (then (i32.store (i32.const 82176) (local.get $imm9)))) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 28))
+(then (i32.store (i32.const 82176) (call $get_w0 (local.get $rs1))) (br $done)))
+(if (i32.eq (local.get $op) (i32.const 29))
+(then
+(local.set $sp (call $bal_rem (i32.sub (i32.load (i32.const 82180)) (i32.const 1)) (i32.const 19683) (i32.const 9841)))
+(i32.store (i32.const 82180) (local.get $sp))
+(i32.store (i32.shl (call $phys_addr (local.get $sp)) (i32.const 2)) (i32.load (i32.const 82176)))
+(i32.store (i32.const 82176) (local.get $imm9))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 30))
+(then
+(local.set $sp (i32.load (i32.const 82180)))
+(i32.store (i32.const 82176) (i32.load (i32.shl (call $phys_addr (local.get $sp)) (i32.const 2))))
+(i32.store (i32.const 82180) (call $bal_rem (i32.add (local.get $sp) (i32.const 1)) (i32.const 19683) (i32.const 9841)))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 31))
+(then
+;; IN rd, port
+(local.set $w0 (i32.const 0))
+(if (i32.eq (local.get $imm9) (i32.const 0))
+(then
+(if (i32.lt_s (i32.load (i32.const 82216)) (i32.load (i32.const 82220)))
+(then
+(local.set $w0 (i32.load (i32.add (i32.const 86016) (i32.shl (i32.load (i32.const 82216)) (i32.const 2)))))
+(i32.store (i32.const 82216) (i32.add (i32.load (i32.const 82216)) (i32.const 1)))
+))))
+(if (i32.eq (local.get $imm9) (i32.const 1))
+(then
+(local.set $w0 (call $bal_rem (i32.sub (i32.load (i32.const 82220)) (i32.load (i32.const 82216))) (i32.const 19683) (i32.const 9841)))))
+(if (i32.eq (local.get $imm9) (i32.const 2)) (then (local.set $w0 (i32.load (i32.const 82204)))))
+(if (i32.eq (local.get $imm9) (i32.const 3)) (then (local.set $w0 (i32.load (i32.const 82208)))))
+(if (i32.eq (local.get $imm9) (i32.const 4))
+(then
+(local.set $addr (i32.add (i32.mul (i32.load (i32.const 82208)) (i32.const 243)) (i32.load (i32.const 82204))))
+(local.set $w0 (i32.load8_s (i32.add (i32.const 196608) (local.get $addr))))))
+(if (i32.eq (local.get $imm9) (i32.const 5)) (then (local.set $w0 (i32.load (i32.const 82232)))))
+(if (i32.eq (local.get $imm9) (i32.const 6)) (then (local.set $w0 (i32.load (i32.const 82228)))))
+(if (i32.eq (local.get $imm9) (i32.const 7)) (then (local.set $w0 (i32.load (i32.const 82212)))))
+(if (i32.eq (local.get $imm9) (i32.const 8))
+(then
+(local.set $addr (i32.load (i32.const 82212)))
+(local.set $w0 (i32.load (i32.add (i32.const 102400) (i32.shl (local.get $addr) (i32.const 2)))))
+(i32.store (i32.const 82212) (i32.rem_s (i32.add (local.get $addr) (i32.const 1)) (i32.const 19683)))))
+(call $set_word (local.get $rd) (local.get $w0) (i32.const 0) (i32.const 0))
+(call $set_flags (call $word_sign (local.get $w0) (i32.const 0) (i32.const 0)) (i32.const 0) (i32.const 0))
+(call $log_io (i32.const 0) (local.get $imm9) (local.get $w0) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const 32))
+(then
+;; OUT rd, port
+(local.set $w0 (call $get_w0 (local.get $rd)))
+(local.set $w1 (call $get_w1 (local.get $rd)))
+(local.set $w2 (call $get_w2 (local.get $rd)))
+(if (i32.eq (local.get $imm9) (i32.const 2))
+(then
+(local.set $addr (i32.rem_s (local.get $w0) (i32.const 243)))
+(if (i32.lt_s (local.get $addr) (i32.const 0)) (then (local.set $addr (i32.add (local.get $addr) (i32.const 243)))))
+(i32.store (i32.const 82204) (local.get $addr))))
+(if (i32.eq (local.get $imm9) (i32.const 3))
+(then
+(local.set $addr (i32.rem_s (local.get $w0) (i32.const 243)))
+(if (i32.lt_s (local.get $addr) (i32.const 0)) (then (local.set $addr (i32.add (local.get $addr) (i32.const 243)))))
+(i32.store (i32.const 82208) (local.get $addr))))
+(if (i32.eq (local.get $imm9) (i32.const 4))
+(then
+(local.set $addr (i32.add (i32.mul (i32.load (i32.const 82208)) (i32.const 243)) (i32.load (i32.const 82204))))
+(i32.store8 (i32.add (i32.const 196608) (local.get $addr)) (call $bal_rem (local.get $w0) (i32.const 27) (i32.const 13)))))
+(if (i32.eq (local.get $imm9) (i32.const 5))
+(then
+(local.set $addr (call $bal_rem (local.get $w0) (i32.const 27) (i32.const 13)))
+(i32.store (i32.const 82232) (local.get $addr))
+(local.set $i (i32.const 0))
+(block $fbrk
+(loop $flp
+(br_if $fbrk (i32.ge_s (local.get $i) (i32.const 59049)))
+(i32.store8 (i32.add (i32.const 196608) (local.get $i)) (local.get $addr))
+(local.set $i (i32.add (local.get $i) (i32.const 1)))
+(br $flp)
+))))
+(if (i32.eq (local.get $imm9) (i32.const 6)) (then (i32.store (i32.const 82228) (local.get $w0))))
+(if (i32.eq (local.get $imm9) (i32.const 7)) (then (i32.store (i32.const 82212) (call $phys_addr (local.get $w0)))))
+(if (i32.eq (local.get $imm9) (i32.const 8))
+(then
+(local.set $addr (i32.load (i32.const 82212)))
+(i32.store (i32.add (i32.const 102400) (i32.shl (local.get $addr) (i32.const 2))) (local.get $w0))
+(i32.store (i32.const 82212) (i32.rem_s (i32.add (local.get $addr) (i32.const 1)) (i32.const 19683)))))
+(call $log_io (i32.const 1) (local.get $imm9) (local.get $w0) (local.get $w1) (local.get $w2))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const -2))
+(then
+(call $alu_add_sub (i32.const -1)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(call $get_w0 (local.get $rs2)) (call $get_w1 (local.get $rs2)) (call $get_w2 (local.get $rs2))
+(i32.const 1) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const -3))
+(then
+(call $alu_add_sub (i32.const -1)
+(call $get_w0 (local.get $rs1)) (call $get_w1 (local.get $rs1)) (call $get_w2 (local.get $rs1))
+(local.get $imm9) (i32.const 0) (i32.const 0)
+(i32.const 1) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const -4))
+(then (call $alu_tritwise (local.get $rd) (local.get $rs1) (local.get $rs2) (i32.const 0) (i32.const 0)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const -5))
+(then (call $alu_tritwise (local.get $rd) (local.get $rs1) (local.get $rs2) (i32.const 1) (i32.const 0)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const -6))
+(then (call $alu_tritwise (local.get $rd) (local.get $rs1) (local.get $rs2) (i32.const 2) (i32.const 0)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const -7))
+(then (call $alu_tritwise (local.get $rd) (local.get $rs1) (local.get $rs2) (i32.const 3) (i32.const 0)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const -8))
+(then (call $alu_tritwise (local.get $rd) (local.get $rs1) (local.get $rs2) (i32.const 4) (i32.const 0)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const -9))
+(then (call $alu_tritwise (local.get $rd) (local.get $rs1) (i32.const 0) (i32.const 5) (local.get $imm9)) (br $done)))
+(if (i32.eq (local.get $op) (i32.const -10))
+(then
+(call $alu_shift (local.get $rd) (local.get $rs1)
+(call $get_w0 (local.get $rs2)) (call $get_w1 (local.get $rs2)) (call $get_w2 (local.get $rs2)) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const -11))
+(then
+(call $alu_shift (local.get $rd) (local.get $rs1) (local.get $imm9) (i32.const 0) (i32.const 0) (i32.const 0))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const -12))
+(then
+(call $alu_shift (local.get $rd) (local.get $rs1)
+(call $get_w0 (local.get $rs2)) (call $get_w1 (local.get $rs2)) (call $get_w2 (local.get $rs2)) (i32.const 1))
+(br $done)))
+(if (i32.eq (local.get $op) (i32.const -13))
+(then
+(call $alu_shift (local.get $rd) (local.get $rs1) (local.get $imm9) (i32.const 0) (i32.const 0) (i32.const 1))
+(br $done)))
+;; Unallocated opcode -> Halt
+(i32.store (i32.const 82196) (i32.const 1))
+)
+(i32.eqz (i32.load (i32.const 82196)))
+)
+(func $run (export "run") (param $max_steps i32) (result i32)
+(local $n i32)
+(local.set $n (i32.const 0))
+(block $brk
+(loop $lp
+(br_if $brk (i32.ge_s (local.get $n) (local.get $max_steps)))
+(br_if $brk (i32.load (i32.const 82196)))
+(drop (call $step))
+(local.set $n (i32.add (local.get $n) (i32.const 1)))
+(br $lp)
+)
+)
+(local.get $n)
+)
+)
+`;
+// ============================================================================
+// WASM INTERPRETER WRAPPER (Assembled by MicroWAT)
+// ============================================================================
+class TritonWASM {
+constructor(wasmModule) {
+this.instance = new WebAssembly.Instance(wasmModule, {});
+this.exports = this.instance.exports;
+this.i32 = new Int32Array(this.exports.mem.buffer);
+this.i8 = new Int8Array(this.exports.mem.buffer);
+this.reset();
+}
+static createSync() {
+const bytes = MicroWAT.assemble(TRITON_WAT);
+const mod = new WebAssembly.Module(bytes);
+return new TritonWASM(mod);
+}
+reset(keepDisk = true) {
+// Clear RAM (0..19682)
+this.i32.fill(0, 0, TRYTE_MOD);
+// Clear Registers (81920/4 .. 81920/4 + 27)
+this.i32.fill(0, 20480, 20480 + 27);
+if (!keepDisk) {
+this.i32.fill(0, 25600, 25600 + TRYTE_MOD);
+}
+this.i8.fill(0, 196608, 196608 + 59049);
+this.pc = 0;
+this.sp = -1;
+this.sf = 0;
+this.cf = 0;
+this.of = 0;
+this.halted = 0;
+this.steps = 0;
+this.displayX = 0;
+this.displayY = 0;
+this.diskAddr = 0;
+this.i32[20554] = 0; // InputHead (82216)
+this.i32[20555] = 0; // InputTail (82220)
+this.i32[20556] = 0; // IOTraceLen (82224)
+this.timerTicks = 0;
+this.displayCmd = 0;
+}
+get pc() { return this.i32[20544]; }
+set pc(v) { this.i32[20544] = v; }
+get sp() { return this.i32[20545]; }
+set sp(v) { this.i32[20545] = v; }
+get sf() { return this.i32[20546]; }
+set sf(v) { this.i32[20546] = v; }
+get cf() { return this.i32[20547]; }
+set cf(v) { this.i32[20547] = v; }
+get of() { return this.i32[20548]; }
+set of(v) { this.i32[20548] = v; }
+get halted() { return this.i32[20549]; }
+set halted(v) { this.i32[20549] = v; }
+get steps() { return this.i32[20550]; }
+set steps(v) { this.i32[20550] = v; }
+get displayX() { return this.i32[20551]; }
+set displayX(v) { this.i32[20551] = v; }
+get displayY() { return this.i32[20552]; }
+set displayY(v) { this.i32[20552] = v; }
+get diskAddr() { return this.i32[20553]; }
+set diskAddr(v) { this.i32[20553] = v; }
+get timerTicks() { return this.i32[20557]; }
+set timerTicks(v) { this.i32[20557] = v; }
+get displayCmd() { return this.i32[20558]; }
+set displayCmd(v) { this.i32[20558] = v; }
+getWord(r) {
+const base = 20480 + r * 3;
+return [this.i32[base], this.i32[base + 1], this.i32[base + 2]];
+}
+setWord(r, w0, w1, w2) {
+const base = 20480 + r * 3;
+this.i32[base] = w0;
+this.i32[base + 1] = w1;
+this.i32[base + 2] = w2;
+}
+getMem(phys) { return this.i32[phys]; }
+setMem(phys, val) { this.i32[phys] = val; }
+loadProgram(trytes, startAddr = 0) {
+for (let i = 0; i < trytes.length; i++) {
+this.i32[physAddr(startAddr + i)] = trytes[i];
+}
+}
+pushInputChar(code) {
+const tail = this.i32[20555];
+this.i32[21504 + tail] = balRem(code, TRYTE_MOD, TRYTE_HALF);
+this.i32[20555] = tail + 1;
+}
+pushInputString(str) {
+for (let i = 0; i < str.length; i++) {
+this.pushInputChar(str.charCodeAt(i));
+}
+}
+getIOTrace() {
+const len = this.i32[20556];
+const out = [];
+for (let i = 0; i < len; i++) {
+const base = 65536 + i * 6;
+out.push([
+this.i32[base],
+this.i32[base + 1],
+this.i32[base + 2],
+this.i32[base + 3],
+this.i32[base + 4],
+this.i32[base + 5]
+]);
+}
+return out;
+}
+getConsoleOut() {
+const trace = this.getIOTrace();
+let s = '';
+for (const [, dir, port, w0] of trace) {
+if (dir === 1 && port === 0) {
+const ch = ((w0 % 19683) + 19683) % 19683;
+s += String.fromCharCode(ch & 0xFFFF);
+}
+}
+return s;
+}
+step() { return this.exports.step(); }
+run(maxSteps = 100000) { return this.exports.run(maxSteps); }
+}
+/* ============================================================================
+ * [INLINE 5/7] Triton 2.0 Two-Pass Assembler & Disassembler
+ * ========================================================================== */
+// ============================================================================
+// TRITON 2.0 INSTRUCTION SPECIFICATION TABLE
+// Format kinds:
+//   'NONE' : op only (HALT, NOP, RET) -> rd=0, rs1=0, t1=0
+//   'R3'   : op rd, rs1, rs2 -> t1 = balRem(rs2, 9, 4)
+//   'R2'   : op rd, rs1      -> t1 = 0
+//   'CMP'  : op rs1, rs2     -> rd=0, t1 = balRem(rs2, 9, 4)
+//   'CMPI' : op rs1, imm9    -> rd=0, t1 = imm9
+//   'RI'   : op rd, imm9     -> rs1=0, t1 = imm9 (LI, LUI, IN, OUT)
+//   'RRI'  : op rd, rs1, imm9-> t1 = imm9 (ADDI, SUBI, MULI, TUNARY, SHLI, SHRI, LT, ST, LW, SW)
+//   'R1_S' : op rs1          -> rd=0, t1 = 0 (PUSH, JR)
+//   'R1_D' : op rd           -> rs1=0, t1 = 0 (POP)
+//   'J'    : op imm9         -> rd=0, rs1=0, t1 = imm9 (JMP, JN, JZ, JP, JNZ, JNP, JNN, CALL)
+// ============================================================================
+const INSTR_SPECS = [
+{ mnem: 'HALT',   op: -1,  fmt: 'NONE' },
+{ mnem: 'NOP',    op: 0,   fmt: 'NONE' },
+{ mnem: 'LI',     op: 1,   fmt: 'RI',   aliases: ['LOAD'] },
+{ mnem: 'LUI',    op: 2,   fmt: 'RI' },
+{ mnem: 'MOV',    op: 3,   fmt: 'R2' },
+{ mnem: 'ADD',    op: 4,   fmt: 'R3' },
+{ mnem: 'ADDI',   op: 5,   fmt: 'RRI' },
+{ mnem: 'ADC',    op: 6,   fmt: 'R3' },
+{ mnem: 'SUB',    op: 7,   fmt: 'R3' },
+{ mnem: 'SUBI',   op: 8,   fmt: 'RRI' },
+{ mnem: 'SBC',    op: 9,   fmt: 'R3' },
+{ mnem: 'MUL',    op: 10,  fmt: 'R3' },
+{ mnem: 'MULI',   op: 11,  fmt: 'RRI' },
+{ mnem: 'DIV',    op: 12,  fmt: 'R3' },
+{ mnem: 'MOD',    op: 13,  fmt: 'R3' },
+{ mnem: 'NEG',    op: 14,  fmt: 'R2',   aliases: ['NOT'] },
+{ mnem: 'LT',     op: 15,  fmt: 'RRI' },
+{ mnem: 'ST',     op: 16,  fmt: 'RRI' },
+{ mnem: 'LW',     op: 17,  fmt: 'RRI' },
+{ mnem: 'SW',     op: 18,  fmt: 'RRI' },
+{ mnem: 'PUSH',   op: 19,  fmt: 'R1_S' },
+{ mnem: 'POP',    op: 20,  fmt: 'R1_D', aliases: ['PULL'] },
+{ mnem: 'JMP',    op: 21,  fmt: 'J' },
+{ mnem: 'JN',     op: 22,  fmt: 'J',    aliases: ['JLT', 'BRN'] },
+{ mnem: 'JZ',     op: 23,  fmt: 'J',    aliases: ['JEQ', 'BRZ'] },
+{ mnem: 'JP',     op: 24,  fmt: 'J',    aliases: ['JGT', 'BRP'] },
+{ mnem: 'JNZ',    op: 25,  fmt: 'J',    aliases: ['JNE'] },
+{ mnem: 'JNP',    op: 26,  fmt: 'J',    aliases: ['JLE'] },
+{ mnem: 'JNN',    op: 27,  fmt: 'J',    aliases: ['JGE'] },
+{ mnem: 'JR',     op: 28,  fmt: 'R1_S' },
+{ mnem: 'CALL',   op: 29,  fmt: 'J' },
+{ mnem: 'RET',    op: 30,  fmt: 'NONE' },
+{ mnem: 'IN',     op: 31,  fmt: 'RI' },
+{ mnem: 'OUT',    op: 32,  fmt: 'RI' },
+{ mnem: 'CMP',    op: -2,  fmt: 'CMP' },
+{ mnem: 'CMPI',   op: -3,  fmt: 'CMPI' },
+{ mnem: 'TMIN',   op: -4,  fmt: 'R3',   aliases: ['AND'] },
+{ mnem: 'TMAX',   op: -5,  fmt: 'R3',   aliases: ['OR'] },
+{ mnem: 'TCON',   op: -6,  fmt: 'R3',   aliases: ['CON'] },
+{ mnem: 'TANY',   op: -7,  fmt: 'R3',   aliases: ['ANY'] },
+{ mnem: 'TXOR',   op: -8,  fmt: 'R3',   aliases: ['XOR'] },
+{ mnem: 'TUNARY', op: -9,  fmt: 'RRI',  aliases: ['UOP'] },
+{ mnem: 'SHL',    op: -10, fmt: 'R3' },
+{ mnem: 'SHLI',   op: -11, fmt: 'RRI' },
+{ mnem: 'SHR',    op: -12, fmt: 'R3' },
+{ mnem: 'SHRI',   op: -13, fmt: 'RRI' }
+];
+const MNEM_MAP = {};
+const OP_MAP = {};
+for (const spec of INSTR_SPECS) {
+MNEM_MAP[spec.mnem] = spec;
+OP_MAP[spec.op] = spec;
+if (spec.aliases) {
+for (const a of spec.aliases) MNEM_MAP[a] = spec;
+}
+}
+// Convert integer to MSB-first balanced ternary string ('T', '0', '1')
+function intToTernaryStr(val, width = 9) {
+const trits = new Array(width).fill(0);
+let v = BigInt(val);
+for (let i = 0; i < width; i++) {
+let r = Number(v % 3n);
+v = (v - BigInt(r)) / 3n;
+if (r === 2) { r = -1; v += 1n; }
+else if (r === -2) { r = 1; v -= 1n; }
+trits[i] = r;
+}
+return trits.reverse().map(t => (t === 1 ? '1' : t === -1 ? 'T' : '0')).join('');
+}
+// Parse MSB-first balanced ternary string ('T'/'N'/'-', '0'/'Z', '1'/'P'/ '+')
+function ternaryStrToBigInt(str) {
+let acc = 0n;
+for (let i = 0; i < str.length; i++) {
+const c = str[i];
+let t = 0n;
+if (c === '1' || c === 'P' || c === '+') t = 1n;
+else if (c === 'T' || c === 'N' || c === '-') t = -1n;
+else if (c === '0' || c === 'Z') t = 0n;
+else throw new Error(`Invalid balanced-ternary digit '${c}' in '${str}'`);
+acc = acc * 3n + t;
+}
+return acc;
+}
+function parseRegister(tok) {
+const m = /^r([0-8])$/i.exec(tok.trim());
+if (!m) throw new Error(`Expected register R0..R8, got '${tok}'`);
+return parseInt(m[1], 10);
+}
+function encodeInstruction(op, rd, rs1, t1) {
+const ed = balRem(rd, 9, 4);
+const e1 = balRem(rs1, 9, 4);
+const tryte0 = op * 81 + ed * 9 + e1;
+const tryte1 = balRem(t1, TRYTE_MOD, TRYTE_HALF);
+return [tryte0 === 0 ? 0 : tryte0, tryte1 === 0 ? 0 : tryte1];
+}
+function decodeInstruction(tryte0, tryte1) {
+const e1 = balRem(tryte0, 9, 4);
+const q1 = balQuot(tryte0, 9, 4);
+const ed = balRem(q1, 9, 4);
+const op = balQuot(q1, 9, 4);
+const rs1 = (e1 + 9) % 9;
+const rd = (ed + 9) % 9;
+const e2 = balRem(tryte1, 9, 4);
+const rs2 = (e2 + 9) % 9;
+const imm9 = balRem(tryte1, TRYTE_MOD, TRYTE_HALF);
+return { op, rd, rs1, rs2, imm9 };
+}
+// Strip comments outside single/double quotes
+function stripComment(line) {
+let inSingle = false;
+let inDouble = false;
+for (let i = 0; i < line.length; i++) {
+const c = line[i];
+if (c === '\\') { i++; continue; }
+if (c === "'" && !inDouble) inSingle = !inSingle;
+else if (c === '"' && !inSingle) inDouble = !inDouble;
+else if (c === ';' && !inSingle && !inDouble) return line.slice(0, i);
+}
+return line;
+}
+// Split operands by comma outside quotes
+function splitOperands(str) {
+const parts = [];
+let cur = '';
+let inSingle = false;
+let inDouble = false;
+for (let i = 0; i < str.length; i++) {
+const c = str[i];
+if (c === '\\' && i + 1 < str.length) {
+cur += c + str[++i];
+continue;
+}
+if (c === "'" && !inDouble) inSingle = !inSingle;
+else if (c === '"' && !inSingle) inDouble = !inDouble;
+else if (c === ',' && !inSingle && !inDouble) {
+parts.push(cur.trim());
+cur = '';
+continue;
+}
+cur += c;
+}
+if (cur.trim().length > 0) parts.push(cur.trim());
+return parts;
+}
+function parseStringLiteral(raw) {
+const s = raw.trim();
+if (s.length < 2 || s[0] !== '"' || s[s.length - 1] !== '"') {
+throw new Error(`Invalid string literal: ${raw}`);
+}
+const codes = [];
+for (let i = 1; i < s.length - 1; i++) {
+if (s[i] === '\\' && i + 1 < s.length - 1) {
+const n = s[++i];
+if (n === 'n') codes.push(10);
+else if (n === 'r') codes.push(13);
+else if (n === 't') codes.push(9);
+else if (n === '0') codes.push(0);
+else if (n === '\\') codes.push(92);
+else if (n === '"') codes.push(34);
+else codes.push(n.charCodeAt(0));
+} else {
+codes.push(s.charCodeAt(i));
+}
+}
+return codes;
+}
+function evalImmediate(expr, symbols, allowBig = false) {
+let s = expr.trim();
+if (s.startsWith('#')) s = s.slice(1).trim();
+// Support simple +/- offset on symbols or literals (e.g. label+2)
+const plusIdx = s.indexOf('+', 1);
+const minusIdx = s.indexOf('-', 1);
+if (plusIdx > 0 && !s.startsWith("'")) {
+const a = evalImmediate(s.slice(0, plusIdx), symbols, true);
+const b = evalImmediate(s.slice(plusIdx + 1), symbols, true);
+return allowBig ? a + b : balRem(Number(a + b), TRYTE_MOD, TRYTE_HALF);
+}
+if (minusIdx > 0 && !s.startsWith("'") && !/^0t/i.test(s)) {
+const a = evalImmediate(s.slice(0, minusIdx), symbols, true);
+const b = evalImmediate(s.slice(minusIdx + 1), symbols, true);
+return allowBig ? a - b : balRem(Number(a - b), TRYTE_MOD, TRYTE_HALF);
+}
+if (s.startsWith("'") && s.endsWith("'") && s.length >= 3) {
+let ch = s.slice(1, -1);
+let code = ch.charCodeAt(0);
+if (ch === '\\n') code = 10;
+else if (ch === '\\r') code = 13;
+else if (ch === '\\t') code = 9;
+else if (ch === '\\0') code = 0;
+else if (ch === "\\'") code = 39;
+else if (ch === '\\\\') code = 92;
+return allowBig ? BigInt(code) : balRem(code, TRYTE_MOD, TRYTE_HALF);
+}
+if (/^[+-]?0t[T01NPZ+-]+$/i.test(s)) {
+let sign = 1n;
+let body = s;
+if (body[0] === '+') body = body.slice(1);
+else if (body[0] === '-') { sign = -1n; body = body.slice(1); }
+const v = sign * ternaryStrToBigInt(body.slice(2).toUpperCase());
+return allowBig ? v : balRem(Number(v % BigInt(TRYTE_MOD)), TRYTE_MOD, TRYTE_HALF);
+}
+if (/^[+-]?\d+$/.test(s)) {
+const v = BigInt(s);
+return allowBig ? v : balRem(Number(v % BigInt(TRYTE_MOD)), TRYTE_MOD, TRYTE_HALF);
+}
+if (symbols[s] !== undefined) {
+const v = BigInt(symbols[s]);
+return allowBig ? v : balRem(Number(v % BigInt(TRYTE_MOD)), TRYTE_MOD, TRYTE_HALF);
+}
+throw new Error(`Undefined symbol or invalid immediate '${expr}'`);
+}
+function assemble(source) {
+const lines = source.replace(/\r\n/g, '\n').split('\n');
+const symbols = {};
+const statements = [];
+let lc = 0;
+// Pass 1: parse labels, .equ, and compute tryte addresses
+for (let lineNo = 0; lineNo < lines.length; lineNo++) {
+let clean = stripComment(lines[lineNo]).trim();
+if (!clean) continue;
+while (true) {
+const m = /^([A-Za-z_.$][A-Za-z0-9_.$]*)\s*:(.*)$/.exec(clean);
+if (!m) break;
+const label = m[1];
+symbols[label] = balRem(lc, TRYTE_MOD, TRYTE_HALF);
+clean = m[2].trim();
+}
+if (!clean) continue;
+const firstSpace = clean.search(/\s/);
+const head = (firstSpace < 0 ? clean : clean.slice(0, firstSpace)).toUpperCase();
+const rest = firstSpace < 0 ? '' : clean.slice(firstSpace + 1).trim();
+if (head === '.EQU') {
+const ops = splitOperands(rest);
+if (ops.length !== 2) throw new Error(`Line ${lineNo + 1}: .equ requires name, value`);
+symbols[ops[0]] = Number(evalImmediate(ops[1], symbols, false));
+continue;
+}
+if (head === '.ORG') {
+lc = physAddr(evalImmediate(rest, symbols, false));
+statements.push({ kind: 'ORG', lc, lineNo });
+continue;
+}
+if (head === '.TRYTE' || head === '.DATA') {
+const ops = splitOperands(rest);
+statements.push({ kind: 'TRYTE', lc, ops, lineNo });
+lc += ops.length;
+continue;
+}
+if (head === '.WORD') {
+const ops = splitOperands(rest);
+statements.push({ kind: 'WORD', lc, ops, lineNo });
+lc += ops.length * 3;
+continue;
+}
+if (head === '.STRING') {
+const codes = parseStringLiteral(rest);
+statements.push({ kind: 'STRING', lc, codes, lineNo });
+lc += codes.length;
+continue;
+}
+if (head === '.STRINGZ') {
+const codes = [...parseStringLiteral(rest), 0];
+statements.push({ kind: 'STRING', lc, codes, lineNo });
+lc += codes.length;
+continue;
+}
+const spec = MNEM_MAP[head];
+if (!spec) throw new Error(`Line ${lineNo + 1}: Unknown mnemonic or directive '${head}'`);
+const ops = rest ? splitOperands(rest) : [];
+statements.push({ kind: 'INS', lc, spec, ops, lineNo });
+lc += 2;
+}
+// Pass 2: emit trytes
+const mem = new Int16Array(TRYTE_MOD);
+let maxAddr = 0;
+let minAddr = TRYTE_MOD;
+const writeTryte = (addr, val) => {
+const p = physAddr(addr);
+mem[p] = balRem(val, TRYTE_MOD, TRYTE_HALF);
+if (p < minAddr) minAddr = p;
+if (p + 1 > maxAddr) maxAddr = p + 1;
+};
+for (const st of statements) {
+if (st.kind === 'ORG') continue;
+if (st.kind === 'TRYTE') {
+let a = st.lc;
+for (const op of st.ops) {
+writeTryte(a++, evalImmediate(op, symbols, false));
+}
+continue;
+}
+if (st.kind === 'WORD') {
+let a = st.lc;
+for (const op of st.ops) {
+const bigV = evalImmediate(op, symbols, true);
+const [w0, w1, w2] = bigIntToWord(bigV);
+writeTryte(a++, w0);
+writeTryte(a++, w1);
+writeTryte(a++, w2);
+}
+continue;
+}
+if (st.kind === 'STRING') {
+let a = st.lc;
+for (const c of st.codes) {
+writeTryte(a++, c);
+}
+continue;
+}
+if (st.kind === 'INS') {
+const { spec, ops, lineNo } = st;
+let rd = 0, rs1 = 0, t1 = 0;
+switch (spec.fmt) {
+case 'NONE':
+if (ops.length !== 0) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes 0 operands`);
+break;
+case 'R3':
+if (ops.length !== 3) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes 3 registers`);
+rd = parseRegister(ops[0]);
+rs1 = parseRegister(ops[1]);
+t1 = balRem(parseRegister(ops[2]), 9, 4);
+break;
+case 'R2':
+if (ops.length !== 2) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes 2 registers`);
+rd = parseRegister(ops[0]);
+rs1 = parseRegister(ops[1]);
+break;
+case 'CMP':
+if (ops.length !== 2) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes 2 registers`);
+rs1 = parseRegister(ops[0]);
+t1 = balRem(parseRegister(ops[1]), 9, 4);
+break;
+case 'CMPI':
+if (ops.length !== 2) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rs1, imm9`);
+rs1 = parseRegister(ops[0]);
+t1 = evalImmediate(ops[1], symbols, false);
+break;
+case 'RI':
+if (ops.length !== 2) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rd, imm9`);
+rd = parseRegister(ops[0]);
+t1 = evalImmediate(ops[1], symbols, false);
+break;
+case 'RRI':
+if (ops.length !== 3) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rd, rs1, imm9`);
+rd = parseRegister(ops[0]);
+rs1 = parseRegister(ops[1]);
+t1 = evalImmediate(ops[2], symbols, false);
+break;
+case 'R1_S':
+if (ops.length !== 1) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rs1`);
+rs1 = parseRegister(ops[0]);
+break;
+case 'R1_D':
+if (ops.length !== 1) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rd`);
+rd = parseRegister(ops[0]);
+break;
+case 'J':
+if (ops.length !== 1) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes target`);
+t1 = evalImmediate(ops[0], symbols, false);
+break;
+}
+const [ins0, ins1] = encodeInstruction(spec.op, rd, rs1, t1);
+writeTryte(st.lc, ins0);
+writeTryte(st.lc + 1, ins1);
+}
+}
+const length = maxAddr > 0 ? maxAddr : 0;
+const trytes = Array.from(mem.slice(0, length));
+return { trytes, mem, symbols, length };
+}
+function disassembleInstruction(tryte0, tryte1) {
+const { op, rd, rs1, rs2, imm9 } = decodeInstruction(tryte0, tryte1);
+const spec = OP_MAP[op];
+if (!spec) {
+return `.tryte #${tryte0}, #${tryte1}`;
+}
+// Verify canonical unused fields so arbitrary data trytes round-trip cleanly if needed
+switch (spec.fmt) {
+case 'NONE':
+if (rd !== 0 || rs1 !== 0 || imm9 !== 0) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem}`;
+case 'R3':
+if (imm9 < -4 || imm9 > 4) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem} R${rd}, R${rs1}, R${rs2}`;
+case 'R2':
+if (imm9 !== 0) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem} R${rd}, R${rs1}`;
+case 'CMP':
+if (rd !== 0 || imm9 < -4 || imm9 > 4) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem} R${rs1}, R${rs2}`;
+case 'CMPI':
+if (rd !== 0) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem} R${rs1}, #0t${intToTernaryStr(imm9, 9)}`;
+case 'RI':
+if (rs1 !== 0) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem} R${rd}, #0t${intToTernaryStr(imm9, 9)}`;
+case 'RRI':
+return `${spec.mnem} R${rd}, R${rs1}, #0t${intToTernaryStr(imm9, 9)}`;
+case 'R1_S':
+if (rd !== 0 || imm9 !== 0) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem} R${rs1}`;
+case 'R1_D':
+if (rs1 !== 0 || imm9 !== 0) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem} R${rd}`;
+case 'J':
+if (rd !== 0 || rs1 !== 0) return `.tryte #${tryte0}, #${tryte1}`;
+return `${spec.mnem} #0t${intToTernaryStr(imm9, 9)}`;
+}
+}
+function disassemble(trytes) {
+const lines = [];
+for (let i = 0; i < trytes.length; i += 2) {
+if (i + 1 < trytes.length) {
+lines.push(disassembleInstruction(trytes[i], trytes[i + 1]));
+} else {
+lines.push(`.tryte #0t${intToTernaryStr(trytes[i], 9)}`);
+}
+}
+return lines.join('\n');
+}
+/* ============================================================================
+ * [INLINE 6/7] TritOS 2.0 Kernel, Shell, Programs & Self-Hosting Assembler
+ * ========================================================================== */
+// Compute the exact 27-trit rolling hash used by the in-OS Triton assembler:
+// For each char in token, upper(c): h = (h * 41 + upper(c)) mod_bal 3^27
+function tokenHash27(str) {
+const s = str.trim().toUpperCase();
+let h0 = 0, h1 = 0, h2 = 0;
+for (let i = 0; i < s.length; i++) {
+const ch = s.charCodeAt(i);
+const u0 = h0 * 41 + ch;
+h0 = balRem(u0, TRYTE_MOD, TRYTE_HALF);
+const k1 = Math.trunc((u0 - h0) / TRYTE_MOD);
+const u1 = h1 * 41 + k1;
+h1 = balRem(u1, TRYTE_MOD, TRYTE_HALF);
+const k2 = Math.trunc((u1 - h1) / TRYTE_MOD);
+const u2 = h2 * 41 + k2;
+h2 = balRem(u2, TRYTE_MOD, TRYTE_HALF);
+}
+return wordToBigInt(h0, h1, h2);
+}
+const FMT_CODE = {
+NONE: 0, R3: 1, R2: 2, CMP: 3, CMPI: 4,
+RI: 5, RRI: 6, R1_S: 7, R1_D: 8, J: 9
+};
+function generateMnemTableAsm() {
+const lines = ['mnem_table:'];
+const directives = [
+{ name: '.EQU', op: 100, fmt: 10 },
+{ name: '.ORG', op: 100, fmt: 11 },
+{ name: '.TRYTE', op: 100, fmt: 12 },
+{ name: '.DATA', op: 100, fmt: 12 },
+{ name: '.WORD', op: 100, fmt: 13 },
+{ name: '.STRING', op: 100, fmt: 14 },
+{ name: '.STRINGZ', op: 100, fmt: 15 }
+];
+for (const d of directives) {
+lines.push(`.word #${tokenHash27(d.name).toString()}`);
+lines.push(`.tryte #${d.op},#${d.fmt}`);
+}
+for (const spec of INSTR_SPECS) {
+const names = [spec.mnem];
+for (const nm of names) {
+lines.push(`.word #${tokenHash27(nm).toString()}`);
+lines.push(`.tryte #${spec.op},#${FMT_CODE[spec.fmt]}`);
+}
+}
+lines.push('.word #0');
+lines.push('.tryte #0,#0');
+return lines.join('\n');
+}
+const TRITOS_SRC = String.raw`.equ P_CH,0
+.equ P_NM,1
+.equ P_DX,2
+.equ P_DY,3
+.equ P_PX,4
+.equ P_DC,5
+.equ P_TM,6
+.equ P_DA,7
+.equ P_DD,8
+.equ LBUF,3000
+.equ SBUF,3120
+.equ SYMC,3196
+.equ PASS,3197
+.equ OLEN,3198
+.equ STAB,3200
+.equ SADR,500
+.equ OBUF,6000
+.org 0
+boot_reset: LI R0,#0
+JMP boot_main
+putc: OUT R0,#P_CH
+RET
+puts: PUSH R0
+PUSH R1
+puts_lp: LT R0,R1,#0
+JZ puts_done
+OUT R0,#P_CH
+ADDI R1,R1,#1
+JMP puts_lp
+puts_done: POP R1
+POP R0
+RET
+put_nl: PUSH R0
+LI R0,#10
+OUT R0,#P_CH
+POP R0
+RET
+gtln: LI R1,#LBUF
+LI R2,#0
+gtln_lp: IN R0,#P_CH
+JZ gtln_eof
+CMPI R0,#13
+JZ gtln_lp
+CMPI R0,#10
+JZ gtln_eol
+CMPI R0,#8
+JZ gtln_bs
+OUT R0,#P_CH
+ST R0,R1,#0
+ADDI R1,R1,#1
+ADDI R2,R2,#1
+JMP gtln_lp
+gtln_bs: CMPI R2,#0
+JZ gtln_lp
+SUBI R1,R1,#1
+SUBI R2,R2,#1
+OUT R0,#P_CH
+JMP gtln_lp
+gtln_eol: OUT R0,#P_CH
+LI R0,#0
+ST R0,R1,#0
+RET
+gtln_eof: LI R0,#0
+ST R0,R1,#0
+LI R2,#-1
+RET
+toupper: CMPI R0,#97
+JN toupper_ret
+CMPI R0,#122
+JP toupper_ret
+SUBI R0,R0,#32
+toupper_ret: RET
+pdec: PUSH R0
+PUSH R1
+PUSH R2
+PUSH R3
+PUSH R4
+CMPI R0,#0
+JP pdec_pos
+JN pdec_neg
+LI R0,#48
+OUT R0,#P_CH
+JMP pdec_done
+pdec_neg: PUSH R0
+LI R0,#45
+OUT R0,#P_CH
+POP R0
+NEG R0,R0
+pdec_pos: LI R1,#SBUF
+LI R2,#0
+LI R3,#10
+pdec_lp: CMPI R0,#0
+JZ pdec_emit
+MOD R4,R0,R3
+DIV R0,R0,R3
+ADDI R4,R4,#48
+ST R4,R1,#0
+ADDI R1,R1,#1
+ADDI R2,R2,#1
+JMP pdec_lp
+pdec_emit: CMPI R2,#0
+JZ pdec_done
+SUBI R1,R1,#1
+SUBI R2,R2,#1
+LT R0,R1,#0
+OUT R0,#P_CH
+JMP pdec_emit
+pdec_done: POP R4
+POP R3
+POP R2
+POP R1
+POP R0
+RET
+ptern: PUSH R0
+PUSH R1
+PUSH R2
+PUSH R3
+PUSH R4
+CMPI R0,#0
+JNZ ptern_nonz
+LI R0,#48
+OUT R0,#P_CH
+JMP ptern_done
+ptern_nonz: LI R1,#SBUF
+LI R2,#0
+LI R3,#3
+ptern_lp: CMPI R0,#0
+JZ ptern_emit
+MOD R4,R0,R3
+DIV R0,R0,R3
+CMPI R4,#2
+JNZ ptern_chk_neg2
+LI R4,#-1
+ADDI R0,R0,#1
+JMP ptern_store
+ptern_chk_neg2: CMPI R4,#-2
+JNZ ptern_store
+LI R4,#1
+SUBI R0,R0,#1
+ptern_store: CMPI R4,#0
+JZ ptern_ch_zero
+JP ptern_ch_pos
+LI R4,#84
+JMP ptern_ch_ok
+ptern_ch_zero: LI R4,#48
+JMP ptern_ch_ok
+ptern_ch_pos: LI R4,#49
+ptern_ch_ok: ST R4,R1,#0
+ADDI R1,R1,#1
+ADDI R2,R2,#1
+JMP ptern_lp
+ptern_emit: CMPI R2,#0
+JZ ptern_done
+SUBI R1,R1,#1
+SUBI R2,R2,#1
+LT R0,R1,#0
+OUT R0,#P_CH
+JMP ptern_emit
+ptern_done: POP R4
+POP R3
+POP R2
+POP R1
+POP R0
+RET
+fs_ini: LI R0,#128
+OUT R0,#P_DA
+IN R1,#P_DD
+CMPI R1,#0
+JNZ fs_ok
+LI R0,#0
+OUT R0,#P_DA
+LI R1,#fs_img
+LI R2,#48
+fs_copy_dir: CMPI R2,#0
+JZ fs_copy_hello
+LT R0,R1,#0
+OUT R0,#P_DD
+ADDI R1,R1,#1
+SUBI R2,R2,#1
+JMP fs_copy_dir
+fs_copy_hello: LI R0,#200
+OUT R0,#P_DA
+LI R1,#str_hello_file
+fs_ch_lp: LT R0,R1,#0
+JZ fs_set_free
+OUT R0,#P_DD
+ADDI R1,R1,#1
+JMP fs_ch_lp
+fs_set_free: LI R0,#128
+OUT R0,#P_DA
+LI R0,#300
+OUT R0,#P_DD
+fs_ok: RET
+boot_main: CALL fs_ini
+LI R0,#0
+OUT R0,#P_DX
+OUT R0,#P_DY
+LI R0,#4
+OUT R0,#P_PX
+LI R1,#str_banner
+CALL puts
+shell_loop: LI R1,#str_prompt
+CALL puts
+CALL gtln
+CMPI R2,#-1
+JZ shell_halt
+CMPI R2,#0
+JZ shell_loop
+LI R1,#LBUF
+CALL sk_sp
+LT R0,R1,#0
+JZ shell_loop
+CALL toupper
+CMPI R0,#'L'
+JZ cmd_list
+CMPI R0,#'T'
+JZ cmd_type
+CMPI R0,#'S'
+JZ cmd_save
+CMPI R0,#'E'
+JZ cmd_save
+CMPI R0,#'C'
+JZ cmd_calc
+CMPI R0,#'D'
+JZ cmd_draw
+CMPI R0,#'G'
+JZ cmd_game
+CMPI R0,#'A'
+JZ cmd_asm
+CMPI R0,#'H'
+JZ cmd_help
+CMPI R0,#'Q'
+JZ shell_halt
+CMPI R0,#'R'
+JZ cmd_r_dispatch
+LI R1,#str_unknown
+CALL puts
+JMP shell_loop
+cmd_r_dispatch: LT R0,R1,#1
+CALL toupper
+CMPI R0,#'E'
+JZ boot_reset
+CALL sk_wd
+CALL sk_sp
+LT R0,R1,#0
+CALL toupper
+CMPI R0,#'C'
+JZ cmd_calc
+CMPI R0,#'D'
+JZ cmd_draw
+CMPI R0,#'G'
+JZ cmd_game
+CMPI R0,#'A'
+JZ cmd_asm
+JMP cmd_list
+shell_halt: HALT
+sk_sp: LT R0,R1,#0
+CMPI R0,#32
+JNZ skip_sp_ret
+ADDI R1,R1,#1
+JMP sk_sp
+skip_sp_ret: RET
+sk_wd: LT R0,R1,#0
+JZ skip_wd_ret
+CMPI R0,#32
+JZ skip_wd_ret
+ADDI R1,R1,#1
+JMP sk_wd
+skip_wd_ret: RET
+cmd_list: LI R1,#str_files_hdr
+CALL puts
+LI R3,#0
+cmd_list_lp: CMPI R3,#128
+JNN shell_loop
+OUT R3,#P_DA
+IN R0,#P_DD
+CMPI R0,#0
+JZ cmd_list_next
+OUT R0,#P_CH
+LI R4,#4
+cmd_list_nm: IN R0,#P_DD
+CMPI R0,#0
+JNZ cmd_list_ch
+LI R0,#32
+cmd_list_ch: OUT R0,#P_CH
+SUBI R4,R4,#1
+JNZ cmd_list_nm
+LI R0,#32
+OUT R0,#P_CH
+IN R5,#P_DD
+IN R6,#P_DD
+IN R7,#P_DD
+MOV R0,R7
+CALL pdec
+LI R1,#str_trytes_sfx
+CALL puts
+cmd_list_next: ADDI R3,R3,#8
+JMP cmd_list_lp
+cmd_type: CALL sk_wd
+CALL sk_sp
+CALL f_fnd
+CMPI R3,#-1
+JZ cmd_type_nf
+ADDI R0,R3,#6
+OUT R0,#P_DA
+IN R6,#P_DD
+IN R7,#P_DD
+OUT R6,#P_DA
+cmd_type_lp: CMPI R7,#0
+JZ cmd_type_done
+IN R0,#P_DD
+OUT R0,#P_CH
+SUBI R7,R7,#1
+JMP cmd_type_lp
+cmd_type_done: CALL put_nl
+JMP shell_loop
+cmd_type_nf: LI R1,#str_not_found
+CALL puts
+JMP shell_loop
+f_fnd: LT R4,R1,#0
+CALL toupper_r4
+LT R5,R1,#1
+CMPI R5,#32
+JNZ ff_c1_ok
+LI R5,#0
+ff_c1_ok: MOV R0,R5
+CALL toupper
+MOV R5,R0
+LI R3,#0
+ff_lp: CMPI R3,#128
+JNN ff_not_found
+OUT R3,#P_DA
+IN R0,#P_DD
+CMP R0,R4
+JNZ ff_next
+IN R0,#P_DD
+CMP R0,R5
+JZ ff_found
+ff_next: ADDI R3,R3,#8
+JMP ff_lp
+ff_not_found: LI R3,#-1
+ff_found: RET
+toupper_r4: PUSH R0
+MOV R0,R4
+CALL toupper
+MOV R4,R0
+POP R0
+RET
+cmd_save: CALL sk_wd
+CALL sk_sp
+MOV R8,R1
+CALL f_fnd
+CMPI R3,#-1
+JNZ save_have_slot
+LI R3,#0
+save_find_free: OUT R3,#P_DA
+IN R0,#P_DD
+CMPI R0,#0
+JZ save_have_slot
+ADDI R3,R3,#8
+JMP save_find_free
+save_have_slot: OUT R3,#P_DA
+MOV R1,R8
+LI R4,#5
+save_fn_lp: CMPI R4,#0
+JZ save_fn_done
+LT R0,R1,#0
+CMPI R0,#0
+JZ save_fn_pad
+CMPI R0,#32
+JZ save_fn_pad
+CALL toupper
+OUT R0,#P_DD
+ADDI R1,R1,#1
+SUBI R4,R4,#1
+JMP save_fn_lp
+save_fn_pad: LI R0,#0
+OUT R0,#P_DD
+SUBI R4,R4,#1
+JMP save_fn_lp
+save_fn_done: MOV R1,R8
+CALL sk_wd
+CALL sk_sp
+LI R0,#128
+OUT R0,#P_DA
+IN R6,#P_DD
+OUT R6,#P_DA
+LI R7,#0
+save_data_lp: LT R0,R1,#0
+JZ save_data_done
+OUT R0,#P_DD
+ADDI R1,R1,#1
+ADDI R7,R7,#1
+JMP save_data_lp
+save_data_done: ADD R5,R6,R7
+LI R0,#128
+OUT R0,#P_DA
+OUT R5,#P_DD
+ADDI R0,R3,#5
+OUT R0,#P_DA
+LI R0,#1
+OUT R0,#P_DD
+OUT R6,#P_DD
+OUT R7,#P_DD
+LI R1,#str_saved
+CALL puts
+JMP shell_loop
+cmd_help: LI R1,#str_help
+CALL puts
+JMP shell_loop
+cmd_calc: CALL sk_wd
+CALL sk_sp
+LT R0,R1,#0
+JNZ calc_eval_line
+calc_repl: LI R1,#str_calc_prompt
+CALL puts
+CALL gtln
+CMPI R2,#-1
+JZ shell_loop
+CMPI R2,#0
+JZ calc_repl
+LI R1,#LBUF
+CALL sk_sp
+LT R0,R1,#0
+CALL toupper
+CMPI R0,#'Q'
+JZ shell_loop
+CALL c_ex
+JMP calc_repl
+calc_eval_line: CALL c_ex
+JMP shell_loop
+c_ex: CALL pbtn
+MOV R5,R4
+CALL sk_sp
+LT R6,R1,#0
+JZ c_pr
+ADDI R1,R1,#1
+CALL sk_sp
+CALL pbtn
+CMPI R6,#'+'
+JNZ calc_chk_sub
+ADD R5,R5,R4
+JMP c_pr
+calc_chk_sub: CMPI R6,#'-'
+JNZ calc_chk_mul
+SUB R5,R5,R4
+JMP c_pr
+calc_chk_mul: CMPI R6,#'*'
+JNZ calc_chk_div
+MUL R5,R5,R4
+JMP c_pr
+calc_chk_div: CMPI R6,#'/'
+JNZ calc_chk_mod
+DIV R5,R5,R4
+JMP c_pr
+calc_chk_mod: CMPI R6,#'%'
+JNZ calc_chk_min
+MOD R5,R5,R4
+JMP c_pr
+calc_chk_min: CMPI R6,#'&'
+JNZ calc_chk_max
+TMIN R5,R5,R4
+JMP c_pr
+calc_chk_max: CMPI R6,#'|'
+JNZ calc_chk_con
+TMAX R5,R5,R4
+JMP c_pr
+calc_chk_con: TCON R5,R5,R4
+c_pr: LI R1,#str_eq_pfx
+CALL puts
+MOV R0,R5
+CALL ptern
+LI R1,#str_dec_open
+CALL puts
+MOV R0,R5
+CALL pdec
+LI R1,#str_dec_close
+CALL puts
+RET
+pbtn: LI R4,#0
+pbt_lp: LT R0,R1,#0
+CALL toupper
+CMPI R0,#'1'
+JZ pbt_pos
+CMPI R0,#'0'
+JZ pbt_zero
+CMPI R0,#'T'
+JZ pbt_neg
+RET
+pbt_pos: MULI R4,R4,#3
+ADDI R4,R4,#1
+ADDI R1,R1,#1
+JMP pbt_lp
+pbt_zero: MULI R4,R4,#3
+ADDI R1,R1,#1
+JMP pbt_lp
+pbt_neg: MULI R4,R4,#3
+SUBI R4,R4,#1
+ADDI R1,R1,#1
+JMP pbt_lp
+cmd_draw: LI R4,#121
+LI R5,#121
+LI R6,#13
+LI R2,#-13
+draw_init_lp: CMPI R2,#14
+JNN draw_init_done
+ADDI R3,R2,#13
+MULI R3,R3,#9
+OUT R3,#P_DX
+LI R0,#12
+OUT R0,#P_DY
+OUT R2,#P_PX
+ADDI R2,R2,#1
+JMP draw_init_lp
+draw_init_done: OUT R4,#P_DX
+OUT R5,#P_DY
+OUT R6,#P_PX
+LI R1,#str_draw_msg
+CALL puts
+JMP shell_loop
+cmd_game: IN R2,#P_TM
+LI R3,#27
+MOD R2,R2,R3
+LI R0,#121
+OUT R0,#P_DX
+LI R0,#180
+OUT R0,#P_DY
+LI R0,#9
+OUT R0,#P_PX
+LI R1,#str_game_msg
+CALL puts
+JMP shell_loop
+cmd_asm: CALL a_ent
+LI R1,#str_asm_ok
+CALL puts
+LI R1,#OLEN
+LT R0,R1,#0
+CALL pdec
+LI R1,#str_trytes_sfx
+CALL puts
+JMP shell_loop
+a_ent: LI R0,#0
+LI R1,#SYMC
+ST R0,R1,#0
+LI R1,#OLEN
+ST R0,R1,#0
+LI R0,#1
+LI R1,#PASS
+ST R0,R1,#0
+CALL a_rp
+LI R0,#2
+LI R1,#PASS
+ST R0,R1,#0
+CALL a_rp
+RET
+a_rp: LI R6,#SADR
+LI R7,#0
+a_ll: CALL a_sh
+CALL src_peek
+CMPI R0,#0
+JZ a_pd
+CMPI R0,#10
+JZ a_nl
+CMPI R0,#59
+JZ a_se
+CALL a_rt
+CALL src_peek
+CMPI R0,#58
+JNZ a_nlb
+ADDI R6,R6,#1
+LI R1,#PASS
+LT R0,R1,#0
+CMPI R0,#1
+JNZ a_ll
+MOV R5,R7
+CALL a_sd
+JMP a_ll
+a_nl: ADDI R6,R6,#1
+JMP a_ll
+a_se: CALL src_peek
+CMPI R0,#0
+JZ a_pd
+CMPI R0,#10
+JZ a_nl
+ADDI R6,R6,#1
+JMP a_se
+a_pd: RET
+a_nlb: CALL a_lm
+CMPI R3,#10
+JNN a_hd
+LI R1,#PASS
+LT R0,R1,#0
+CMPI R0,#1
+JZ a_ip1
+PUSH R2
+PUSH R3
+LI R4,#0
+LI R5,#0
+LI R8,#0
+CMPI R3,#0
+JZ a_ei
+CMPI R3,#1
+JZ asm_fmt_r3
+CMPI R3,#2
+JZ asm_fmt_r2
+CMPI R3,#3
+JZ asm_fmt_cmp
+CMPI R3,#4
+JZ asm_fmt_cmpi
+CMPI R3,#5
+JZ asm_fmt_ri
+CMPI R3,#6
+JZ asm_fmt_rri
+CMPI R3,#7
+JZ asm_fmt_r1s
+CMPI R3,#8
+JZ asm_fmt_r1d
+CALL a_eo
+MOV R8,R0
+JMP a_ei
+asm_fmt_r3: CALL a_pr
+MOV R4,R0
+CALL a_sc
+CALL a_pr
+MOV R5,R0
+CALL a_sc
+CALL a_pr
+CALL asm_bal9
+MOV R8,R0
+JMP a_ei
+asm_fmt_r2: CALL a_pr
+MOV R4,R0
+CALL a_sc
+CALL a_pr
+MOV R5,R0
+JMP a_ei
+asm_fmt_cmp: CALL a_pr
+MOV R5,R0
+CALL a_sc
+CALL a_pr
+CALL asm_bal9
+MOV R8,R0
+JMP a_ei
+asm_fmt_cmpi: CALL a_pr
+MOV R5,R0
+CALL a_sc
+CALL a_eo
+MOV R8,R0
+JMP a_ei
+asm_fmt_ri: CALL a_pr
+MOV R4,R0
+CALL a_sc
+CALL a_eo
+MOV R8,R0
+JMP a_ei
+asm_fmt_rri: CALL a_pr
+MOV R4,R0
+CALL a_sc
+CALL a_pr
+MOV R5,R0
+CALL a_sc
+CALL a_eo
+MOV R8,R0
+JMP a_ei
+asm_fmt_r1s: CALL a_pr
+MOV R5,R0
+JMP a_ei
+asm_fmt_r1d: CALL a_pr
+MOV R4,R0
+a_ei: POP R3
+POP R2
+MOV R0,R4
+CALL asm_bal9
+MULI R0,R0,#9
+MOV R4,R0
+MOV R0,R5
+CALL asm_bal9
+ADD R4,R4,R0
+MULI R2,R2,#81
+ADD R0,R2,R4
+CALL a_em
+MOV R0,R8
+CALL a_em
+JMP a_se
+a_ip1: ADDI R7,R7,#2
+JMP a_se
+a_hd: CMPI R3,#10
+JZ asm_dir_equ
+CMPI R3,#11
+JZ asm_dir_org
+CMPI R3,#12
+JZ asm_dir_tryte
+CMPI R3,#13
+JZ asm_dir_word
+JMP asm_dir_string
+asm_dir_equ: CALL a_sh
+CALL a_rt
+PUSH R4
+CALL a_sc
+CALL a_eo
+MOV R5,R0
+POP R4
+LI R1,#PASS
+LT R0,R1,#0
+CMPI R0,#1
+JNZ a_se
+CALL a_sd
+JMP a_se
+asm_dir_org: CALL a_eo
+MOV R7,R0
+JMP a_se
+asm_dir_tryte: CALL a_eo
+LI R1,#PASS
+LT R2,R1,#0
+CMPI R2,#2
+JNZ asm_dt_p1
+CALL a_em
+JMP asm_dt_next
+asm_dt_p1: ADDI R7,R7,#1
+asm_dt_next: CALL a_sh
+CALL src_peek
+CMPI R0,#44
+JNZ a_se
+ADDI R6,R6,#1
+JMP asm_dir_tryte
+asm_dir_word: CALL a_eo
+LI R1,#PASS
+LT R2,R1,#0
+CMPI R2,#2
+JNZ asm_dw_p1
+LI R1,#OBUF
+ADD R1,R1,R7
+SW R0,R1,#0
+ADDI R7,R7,#3
+CALL a_um
+JMP asm_dw_next
+asm_dw_p1: ADDI R7,R7,#3
+asm_dw_next: CALL a_sh
+CALL src_peek
+CMPI R0,#44
+JNZ a_se
+ADDI R6,R6,#1
+JMP asm_dir_word
+asm_dir_string: CALL a_sh
+CALL src_peek
+CMPI R0,#34
+JNZ a_se
+ADDI R6,R6,#1
+asm_ds_lp: CALL src_peek
+CMPI R0,#0
+JZ asm_ds_done
+CMPI R0,#34
+JZ asm_ds_close
+CMPI R0,#92
+JNZ asm_ds_emit
+ADDI R6,R6,#1
+CALL src_peek
+CMPI R0,#'n'
+JNZ asm_ds_chk_r
+LI R0,#10
+JMP asm_ds_emit
+asm_ds_chk_r: CMPI R0,#'r'
+JNZ asm_ds_chk_t
+LI R0,#13
+JMP asm_ds_emit
+asm_ds_chk_t: CMPI R0,#'t'
+JNZ asm_ds_chk_0
+LI R0,#9
+JMP asm_ds_emit
+asm_ds_chk_0: CMPI R0,#'0'
+JNZ asm_ds_emit
+LI R0,#0
+asm_ds_emit: ADDI R6,R6,#1
+LI R1,#PASS
+LT R2,R1,#0
+CMPI R2,#2
+JNZ asm_ds_p1
+CALL a_em
+JMP asm_ds_lp
+asm_ds_p1: ADDI R7,R7,#1
+JMP asm_ds_lp
+asm_ds_close: ADDI R6,R6,#1
+CMPI R3,#15
+JNZ asm_ds_done
+LI R1,#PASS
+LT R2,R1,#0
+CMPI R2,#2
+JNZ asm_dsz_p1
+LI R0,#0
+CALL a_em
+JMP asm_ds_done
+asm_dsz_p1: ADDI R7,R7,#1
+asm_ds_done: JMP a_se
+a_em: PUSH R1
+LI R1,#OBUF
+ADD R1,R1,R7
+ST R0,R1,#0
+ADDI R7,R7,#1
+CALL a_um
+POP R1
+RET
+a_um: PUSH R1
+PUSH R2
+LI R1,#OLEN
+LT R2,R1,#0
+CMP R7,R2
+JNP asm_uml_ret
+ST R7,R1,#0
+asm_uml_ret: POP R2
+POP R1
+RET
+asm_bal9: CMPI R0,#4
+JNP asm_bal9_ret
+SUBI R0,R0,#9
+asm_bal9_ret: RET
+src_peek: OUT R6,#P_DA
+IN R0,#P_DD
+RET
+a_sh: CALL src_peek
+CMPI R0,#32
+JZ asm_sh_adv
+CMPI R0,#9
+JZ asm_sh_adv
+CMPI R0,#13
+JZ asm_sh_adv
+RET
+asm_sh_adv: ADDI R6,R6,#1
+JMP a_sh
+a_sc: CALL a_sh
+CALL src_peek
+CMPI R0,#44
+JNZ asm_sc_ret
+ADDI R6,R6,#1
+asm_sc_ret: CALL a_sh
+RET
+a_rt: CALL a_sh
+LI R4,#0
+asm_rt_lp: CALL src_peek
+CMPI R0,#0
+JZ asm_rt_done
+CMPI R0,#32
+JZ asm_rt_done
+CMPI R0,#9
+JZ asm_rt_done
+CMPI R0,#10
+JZ asm_rt_done
+CMPI R0,#13
+JZ asm_rt_done
+CMPI R0,#44
+JZ asm_rt_done
+CMPI R0,#58
+JZ asm_rt_done
+CMPI R0,#59
+JZ asm_rt_done
+CMPI R0,#43
+JZ asm_rt_done
+CMPI R0,#45
+JZ asm_rt_done
+CALL toupper
+MULI R4,R4,#41
+ADD R4,R4,R0
+ADDI R6,R6,#1
+JMP asm_rt_lp
+asm_rt_done: RET
+a_pr: CALL a_sh
+ADDI R6,R6,#1
+CALL src_peek
+SUBI R0,R0,#48
+ADDI R6,R6,#1
+RET
+a_lm: PUSH R1
+PUSH R5
+LI R1,#mnem_table
+asm_lm_lp: LW R5,R1,#0
+JZ asm_lm_nf
+CMP R4,R5
+JZ asm_lm_found
+ADDI R1,R1,#5
+JMP asm_lm_lp
+asm_lm_found: LT R2,R1,#3
+LT R3,R1,#4
+POP R5
+POP R1
+RET
+asm_lm_nf: LI R2,#0
+LI R3,#0
+POP R5
+POP R1
+RET
+a_sd: PUSH R1
+PUSH R2
+LI R1,#SYMC
+LT R2,R1,#0
+ADDI R0,R2,#1
+ST R0,R1,#0
+MULI R2,R2,#4
+ADDI R2,R2,#STAB
+SW R4,R2,#0
+ST R5,R2,#3
+POP R2
+POP R1
+RET
+a_sl: PUSH R1
+PUSH R2
+PUSH R5
+LI R1,#SYMC
+LT R2,R1,#0
+LI R1,#STAB
+asm_sl_lp: CMPI R2,#0
+JZ asm_sl_nf
+LW R5,R1,#0
+CMP R4,R5
+JZ asm_sl_found
+ADDI R1,R1,#4
+SUBI R2,R2,#1
+JMP asm_sl_lp
+asm_sl_found: LT R0,R1,#3
+POP R5
+POP R2
+POP R1
+RET
+asm_sl_nf: LI R0,#0
+POP R5
+POP R2
+POP R1
+RET
+a_eo: PUSH R2
+PUSH R3
+PUSH R4
+CALL a_sh
+CALL src_peek
+CMPI R0,#35
+JNZ asm_eo_nohash
+ADDI R6,R6,#1
+asm_eo_nohash: CALL a_et
+MOV R2,R0
+CALL src_peek
+CMPI R0,#43
+JZ asm_eo_plus
+CMPI R0,#45
+JZ asm_eo_minus
+MOV R0,R2
+POP R4
+POP R3
+POP R2
+RET
+asm_eo_plus: ADDI R6,R6,#1
+CALL a_et
+ADD R0,R2,R0
+POP R4
+POP R3
+POP R2
+RET
+asm_eo_minus: ADDI R6,R6,#1
+CALL a_et
+SUB R0,R2,R0
+POP R4
+POP R3
+POP R2
+RET
+a_et: CALL a_sh
+CALL src_peek
+CMPI R0,#39
+JZ asm_et_char
+LI R3,#1
+CMPI R0,#43
+JZ asm_et_pos
+CMPI R0,#45
+JNZ asm_et_chk_num
+LI R3,#-1
+asm_et_pos: ADDI R6,R6,#1
+CALL src_peek
+asm_et_chk_num: CMPI R0,#48
+JN asm_et_sym
+CMPI R0,#57
+JP asm_et_sym
+CMPI R0,#48
+JNZ asm_et_dec
+IN R4,#P_DD
+CMPI R4,#'t'
+JZ asm_et_tern
+CMPI R4,#'T'
+JZ asm_et_tern
+asm_et_dec: LI R4,#0
+asm_et_dec_lp: CALL src_peek
+CMPI R0,#48
+JN asm_et_dec_done
+CMPI R0,#57
+JP asm_et_dec_done
+SUBI R0,R0,#48
+MULI R4,R4,#10
+ADD R4,R4,R0
+ADDI R6,R6,#1
+JMP asm_et_dec_lp
+asm_et_dec_done: MUL R0,R4,R3
+RET
+asm_et_tern: ADDI R6,R6,#2
+LI R4,#0
+asm_et_tern_lp: CALL src_peek
+CALL toupper
+CMPI R0,#'1'
+JZ asm_ett_1
+CMPI R0,#'0'
+JZ asm_ett_0
+CMPI R0,#'T'
+JZ asm_ett_t
+MUL R0,R4,R3
+RET
+asm_ett_1: MULI R4,R4,#3
+ADDI R4,R4,#1
+ADDI R6,R6,#1
+JMP asm_et_tern_lp
+asm_ett_0: MULI R4,R4,#3
+ADDI R6,R6,#1
+JMP asm_et_tern_lp
+asm_ett_t: MULI R4,R4,#3
+SUBI R4,R4,#1
+ADDI R6,R6,#1
+JMP asm_et_tern_lp
+asm_et_char: ADDI R6,R6,#1
+CALL src_peek
+CMPI R0,#92
+JNZ asm_etc_norm
+ADDI R6,R6,#1
+CALL src_peek
+CMPI R0,#'n'
+JNZ asm_etc_norm
+LI R0,#10
+asm_etc_norm: ADDI R6,R6,#2
+RET
+asm_et_sym: LI R1,#PASS
+LT R0,R1,#0
+CMPI R0,#1
+JZ asm_et_sym_p1
+CALL a_rt
+CALL a_sl
+MUL R0,R0,R3
+RET
+asm_et_sym_p1: CALL a_rt
+LI R0,#0
+RET
+str_banner: .stringz "TritOS 2.0 [27-Trit Balanced-Ternary System]\nType HELP for commands.\n"
+str_prompt: .stringz "tritos> "
+str_calc_prompt: .stringz "calc> "
+str_files_hdr: .stringz "FILES ON DISK:\n"
+str_trytes_sfx: .stringz " trytes\n"
+str_not_found: .stringz "FILE NOT FOUND\n"
+str_saved: .stringz "SAVED.\n"
+str_unknown: .stringz "UNKNOWN CMD\n"
+str_eq_pfx: .stringz "= "
+str_dec_open: .stringz " ("
+str_dec_close: .stringz ")\n"
+str_draw_msg: .stringz "DRAW: 27-COLOR SPECTRUM + PIXEL PLOTTED AT (121,121)\n"
+str_game_msg: .stringz "TRIT-QUEST: TARGET BALANCED AT 0, SCORE +10T\n"
+str_asm_ok: .stringz "ASM OK: "
+str_help: .stringz "CMDS: LIST, TYPE <F>, SAVE <F> <TXT>, EDIT <F> <TXT>, RUN <P>, CALC, DRAW, GAME, ASM, REBOOT\n"
+str_hello_file: .stringz "HELLO FROM TRITOS 2.0 DISK!"
+fs_img: .tryte #'C',#'A',#'L',#'C',#0,#2,#0,#64
+.tryte #'D',#'R',#'A',#'W',#0,#2,#0,#48
+.tryte #'G',#'A',#'M',#'E',#0,#2,#0,#48
+.tryte #'A',#'S',#'M',#0,#0,#2,#0,#250
+.tryte #'H',#'E',#'L',#'L',#'O',#1,#200,#27
+.tryte #0,#0,#0,#0,#0,#0,#0,#0
+${generateMnemTableAsm()}
+`;
+/* ============================================================================
+ * [INLINE 7/7] Workstation Devices, State Exporter & UI Controller
+ * ========================================================================== */
+function computeStateHash(vm) {
+  let h = 2166136261 >>> 0;
+  const mix = (v) => {
+    h ^= (v & 0xFFFF);
+    h = Math.imul(h, 16777619) >>> 0;
+    h ^= ((v >> 16) & 0xFFFF);
+    h = Math.imul(h, 16777619) >>> 0;
+  };
+  mix(vm.pc);
+  mix(vm.sp);
+  mix(vm.sf);
+  mix(vm.cf);
+  mix(vm.of);
+  mix(vm.halted);
+  mix(vm.steps);
+  mix(vm.displayX);
+  mix(vm.displayY);
+  mix(vm.diskAddr);
+  mix(vm.timerTicks);
+  for (let r = 0; r < 9; r++) {
+    const [w0, w1, w2] = vm.getWord(r);
+    mix(w0); mix(w1); mix(w2);
+  }
+  for (let i = 0; i < TRYTE_MOD; i++) {
+    const m = vm instanceof TritonWASM ? vm.getMem(i) : vm.mem[i];
+    if (m !== 0) { mix(i); mix(m); }
+  }
+  for (let i = 0; i < TRYTE_MOD; i++) {
+    const d = vm instanceof TritonWASM ? vm.i32[25600 + i] : vm.disk[i];
+    if (d !== 0) { mix(i); mix(d); }
+  }
+  for (let i = 0; i < 59049; i++) {
+    const p = vm instanceof TritonWASM ? vm.i8[196608 + i] : vm.vram[i];
+    if (p !== 0) { mix(i); mix(p); }
+  }
+  return h >>> 0;
+}
+function captureSnapshot(jsVm) {
+  const rleEncode = (arr) => {
+    const out = [];
+    for (let i = 0; i < arr.length; i++) {
+      if (arr[i] !== 0) out.push([i, arr[i]]);
+    }
+    return out;
+  };
+  return {
+    version: '2.0.0',
+    pc: jsVm.pc,
+    sp: jsVm.sp,
+    sf: jsVm.sf,
+    cf: jsVm.cf,
+    of: jsVm.of,
+    halted: jsVm.halted,
+    steps: jsVm.steps,
+    displayX: jsVm.displayX,
+    displayY: jsVm.displayY,
+    displayCmd: jsVm.displayCmd,
+    diskAddr: jsVm.diskAddr,
+    timerTicks: jsVm.timerTicks,
+    reg: Array.from(jsVm.reg),
+    memSparse: rleEncode(jsVm.mem),
+    diskSparse: rleEncode(jsVm.disk),
+    vramSparse: rleEncode(jsVm.vram),
+    pendingInput: jsVm.inputQueue.slice(jsVm.inputHead),
+    consoleOut: jsVm.consoleOut,
+    ioTrace: jsVm.ioTrace
+  };
+}
+function restoreSnapshot(snap, jsVm, wasmVm) {
+  if (jsVm) {
+    jsVm.reset(false);
+    jsVm.pc = snap.pc;
+    jsVm.sp = snap.sp;
+    jsVm.sf = snap.sf;
+    jsVm.cf = snap.cf;
+    jsVm.of = snap.of;
+    jsVm.halted = snap.halted;
+    jsVm.steps = snap.steps;
+    jsVm.displayX = snap.displayX;
+    jsVm.displayY = snap.displayY;
+    jsVm.displayCmd = snap.displayCmd || 0;
+    jsVm.diskAddr = snap.diskAddr;
+    jsVm.timerTicks = snap.timerTicks;
+    for (let i = 0; i < 27; i++) jsVm.reg[i] = snap.reg[i];
+    for (const [idx, val] of snap.memSparse) jsVm.mem[idx] = val;
+    for (const [idx, val] of snap.diskSparse) jsVm.disk[idx] = val;
+    for (const [idx, val] of snap.vramSparse) jsVm.vram[idx] = val;
+    jsVm.inputQueue = (snap.pendingInput || []).slice();
+    jsVm.inputHead = 0;
+    jsVm.consoleOut = snap.consoleOut || '';
+    jsVm.ioTrace = (snap.ioTrace || []).map(x => x.slice());
+  }
+  if (wasmVm) {
+    wasmVm.reset(false);
+    wasmVm.pc = snap.pc;
+    wasmVm.sp = snap.sp;
+    wasmVm.sf = snap.sf;
+    wasmVm.cf = snap.cf;
+    wasmVm.of = snap.of;
+    wasmVm.halted = snap.halted;
+    wasmVm.steps = snap.steps;
+    wasmVm.displayX = snap.displayX;
+    wasmVm.displayY = snap.displayY;
+    wasmVm.displayCmd = snap.displayCmd || 0;
+    wasmVm.diskAddr = snap.diskAddr;
+    wasmVm.timerTicks = snap.timerTicks;
+    for (let r = 0; r < 9; r++) {
+      wasmVm.setWord(r, snap.reg[r * 3], snap.reg[r * 3 + 1], snap.reg[r * 3 + 2]);
+    }
+    for (const [idx, val] of snap.memSparse) wasmVm.setMem(idx, val);
+    for (const [idx, val] of snap.diskSparse) wasmVm.i32[25600 + idx] = val;
+    for (const [idx, val] of snap.vramSparse) wasmVm.i8[196608 + idx] = val;
+    for (const code of (snap.pendingInput || [])) wasmVm.pushInputChar(code);
+    const trace = snap.ioTrace || [];
+    wasmVm.i32[20556] = trace.length;
+    for (let i = 0; i < trace.length; i++) {
+      const base = 65536 + i * 6;
+      for (let k = 0; k < 6; k++) wasmVm.i32[base + k] = trace[i][k];
+    }
+  }
+}
+function exportSelfContainedHTML(templateHtml, jsVm) {
+  const snapJson = JSON.stringify(captureSnapshot(jsVm));
+  return templateHtml.replace(
+    /<script id="triton-snapshot" type="application\/json">[\s\S]*?<\/script>/,
+    '<script id="triton-snapshot" type="application/json">' + snapJson + '<\/script>'
+  );
+}
+function extractSnapshotFromHTML(htmlStr) {
+  const m = /<script id="triton-snapshot" type="application\/json">([\s\S]*?)<\/script>/.exec(htmlStr);
+  if (!m) return null;
+  const txt = m[1].trim();
+  if (!txt || txt === 'null') return null;
+  return JSON.parse(txt);
+}
+// 27-Color Balanced-Ternary Palette: each channel (R, G, B) in {T, 0, 1} -> {28, 128, 240}
+const PALETTE_27 = (() => {
+  const levels = [28, 132, 242];
+  const pal = {};
+  for (let v = -13; v <= 13; v++) {
+    const t0 = balRem(v, 3, 1);
+    const q1 = balQuot(v, 3, 1);
+    const t1 = balRem(q1, 3, 1);
+    const t2 = balQuot(q1, 3, 1);
+    pal[v] = [levels[t2 + 1], levels[t1 + 1], levels[t0 + 1]];
+  }
+  return pal;
+})();
+const TritonSystem = {
+  MicroWAT,
+  TRITON_WAT,
+  TRYTE_MOD,
+  TRYTE_HALF,
+  WORD_MOD_BIG,
+  WORD_HALF_BIG,
+  balRem,
+  balQuot,
+  physAddr,
+  wordSign,
+  wordToTrits,
+  tritsToWord,
+  wordToBigInt,
+  bigIntToWord,
+  intToTernaryStr,
+  ternaryStrToBigInt,
+  INSTR_SPECS,
+  MNEM_MAP,
+  OP_MAP,
+  encodeInstruction,
+  decodeInstruction,
+  assemble,
+  disassemble,
+  disassembleInstruction,
+  TRITOS_SRC,
+  tokenHash27,
+  TritonJS,
+  TritonWASM,
+  computeStateHash,
+  captureSnapshot,
+  restoreSnapshot,
+  exportSelfContainedHTML,
+  extractSnapshotFromHTML,
+  PALETTE_27
+};
+if (typeof globalThis !== 'undefined') {
+  globalThis.TritonSystem = TritonSystem;
+}
+// Browser Workstation UI Initialization
+if (typeof document !== 'undefined') {
+  window.addEventListener('DOMContentLoaded', () => {
+    const jsVm = new TritonJS();
+    const wasmVm = TritonWASM.createSync();
+    const builtOS = assemble(TRITOS_SRC);
+    const screenCanvas = document.getElementById('triton-screen');
+    const ctx = screenCanvas.getContext('2d');
+    const imgData = ctx.createImageData(243, 243);
+    const consoleEl = document.getElementById('console-output');
+    const cmdInput = document.getElementById('cmd-input');
+    const regGrid = document.getElementById('reg-grid');
+    const memView = document.getElementById('mem-view');
+    const sourceEditor = document.getElementById('source-editor');
+    const footerMsg = document.getElementById('footer-msg');
+    sourceEditor.value = TRITOS_SRC;
+    function loadTritOSIntoBoth(keepDisk = false) {
+      jsVm.reset(keepDisk);
+      wasmVm.reset(keepDisk);
+      jsVm.mem.set(builtOS.mem);
+      wasmVm.loadProgram(builtOS.trytes, 0);
+      // Preload TRITOS_SRC onto Disk[500..] for self-hosting assembler
+      for (let i = 0; i < TRITOS_SRC.length; i++) {
+        const ch = balRem(TRITOS_SRC.charCodeAt(i), TRYTE_MOD, TRYTE_HALF);
+        jsVm.disk[500 + i] = ch;
+        wasmVm.i32[25600 + 500 + i] = ch;
+      }
+      jsVm.disk[500 + TRITOS_SRC.length] = 0;
+      wasmVm.i32[25600 + 500 + TRITOS_SRC.length] = 0;
+    }
+    function formatColoredTrits(str) {
+      let out = '';
+      for (let i = 0; i < str.length; i++) {
+        const c = str[i];
+        const cls = c === '1' ? 't1' : (c === 'T' ? 'tT' : 't0');
+        out += `<span class="${cls}">${c}</span>`;
+        if (i === 8 || i === 17) out += ' ';
+      }
+      return out;
+    }
+    function renderDisplay() {
+      const data = imgData.data;
+      for (let i = 0; i < 59049; i++) {
+        const c = jsVm.vram[i];
+        const [r, g, b] = PALETTE_27[c] || [0, 0, 0];
+        const p = i * 4;
+        data[p] = r;
+        data[p + 1] = g;
+        data[p + 2] = b;
+        data[p + 3] = 255;
+      }
+      ctx.putImageData(imgData, 0, 0);
+      // Render console text overlay onto the 243x243 screen
+      ctx.fillStyle = 'rgba(0, 230, 118, 0.88)';
+      ctx.font = '9px monospace';
+      const lines = jsVm.consoleOut.split('\n').slice(-16);
+      for (let i = 0; i < lines.length; i++) {
+        ctx.fillText(lines[i].slice(0, 38), 6, 30 + i * 13);
+      }
+    }
+    function syncUI() {
+      const tritSym = (v) => v > 0 ? '1 (+1)' : (v < 0 ? 'T (-1)' : '0 (0)');
+      document.getElementById('st-pc').textContent = `${jsVm.pc} (0t${intToTernaryStr(jsVm.pc, 9)})`;
+      document.getElementById('st-sp').textContent = `${jsVm.sp}`;
+      document.getElementById('st-sf').textContent = tritSym(jsVm.sf);
+      document.getElementById('st-cf').textContent = tritSym(jsVm.cf);
+      document.getElementById('st-of').textContent = tritSym(jsVm.of);
+      document.getElementById('st-steps').textContent = `${jsVm.steps}`;
+      document.getElementById('cursor-coords').textContent = `X:${jsVm.displayX} Y:${jsVm.displayY}`;
+      const hJs = computeStateHash(jsVm);
+      const hWasm = computeStateHash(wasmVm);
+      document.getElementById('state-hash-lbl').textContent = `Hash: 0x${hJs.toString(16).padStart(8, '0')}`;
+      const syncEl = document.getElementById('sync-indicator');
+      if (hJs === hWasm) {
+        syncEl.textContent = 'JS ≡ WASM LOCKSTEP OK';
+        syncEl.style.color = 'var(--trit-pos)';
+      } else {
+        syncEl.textContent = 'DIVERGENCE DETECTED';
+        syncEl.style.color = 'var(--trit-neg)';
+      }
+      let regHtml = '';
+      for (let r = 0; r < 9; r++) {
+        const [w0, w1, w2] = jsVm.getWord(r);
+        const bigV = wordToBigInt(w0, w1, w2);
+        const tStr = intToTernaryStr(w2, 9) + intToTernaryStr(w1, 9) + intToTernaryStr(w0, 9);
+        regHtml += `<div class="reg-card">
+          <div class="reg-top"><span class="reg-name">R${r}</span><span class="reg-dec">${bigV.toString()}</span></div>
+          <div class="reg-trits">${formatColoredTrits(tStr)}</div>
+        </div>`;
+      }
+      regGrid.innerHTML = regHtml;
+      // Disassembly around PC
+      const basePc = Math.max(0, physAddr(jsVm.pc) - 6);
+      const disLines = [];
+      for (let a = basePc; a < basePc + 28 && a + 1 < TRYTE_MOD; a += 2) {
+        const mark = a === physAddr(jsVm.pc) ? '▶ ' : '  ';
+        const t0 = jsVm.mem[a];
+        const t1 = jsVm.mem[a + 1];
+        disLines.push(`${mark}[${String(a).padStart(5, '0')}] 0t${intToTernaryStr(t0, 9)} 0t${intToTernaryStr(t1, 9)} | ${disassembleInstruction(t0, t1)}`);
+      }
+      memView.textContent = disLines.join('\n');
+      consoleEl.textContent = jsVm.consoleOut;
+      consoleEl.scrollTop = consoleEl.scrollHeight;
+      renderDisplay();
+    }
+    function runBothUntilIdle(maxSteps = 250000) {
+      jsVm.halted = 0;
+      wasmVm.halted = 0;
+      let steps = 0;
+      while (steps < maxSteps && !jsVm.halted) {
+        // Stop waiting at IN R0, #PORT_CHAR if input queue is empty
+        const p0 = physAddr(jsVm.pc);
+        const t0 = jsVm.mem[p0];
+        const t1 = jsVm.mem[physAddr(jsVm.pc + 1)];
+        const dec = decodeInstruction(t0, t1);
+        if (dec.op === 31 && dec.imm9 === 0 && jsVm.inputHead >= jsVm.inputQueue.length) {
+          break;
+        }
+        jsVm.step();
+        wasmVm.step();
+        steps++;
+      }
+      syncUI();
+    }
+    function sendCommand(cmdText) {
+      const line = cmdText.endsWith('\n') ? cmdText : cmdText + '\n';
+      jsVm.pushInputString(line);
+      wasmVm.pushInputString(line);
+      runBothUntilIdle(2500000);
+    }
+    // Check if an embedded snapshot exists in #triton-snapshot
+    const snapEl = document.getElementById('triton-snapshot');
+    if (snapEl && snapEl.textContent.trim() !== 'null' && snapEl.textContent.trim() !== '') {
+      try {
+        const snap = JSON.parse(snapEl.textContent);
+        restoreSnapshot(snap, jsVm, wasmVm);
+        syncUI();
+        footerMsg.textContent = 'Restored machine state from embedded snapshot.';
+      } catch (err) {
+        loadTritOSIntoBoth(false);
+        runBothUntilIdle(200000);
+      }
+    } else {
+      loadTritOSIntoBoth(false);
+      runBothUntilIdle(200000);
+    }
+    document.getElementById('btn-boot').addEventListener('click', () => {
+      loadTritOSIntoBoth(false);
+      runBothUntilIdle(200000);
+      footerMsg.textContent = 'TritOS 2.0 booted in lockstep on JS and MicroWAT WASM interpreters.';
+    });
+    document.getElementById('btn-step').addEventListener('click', () => {
+      jsVm.halted = 0;
+      wasmVm.halted = 0;
+      jsVm.step();
+      wasmVm.step();
+      syncUI();
+    });
+    document.getElementById('btn-run').addEventListener('click', () => {
+      runBothUntilIdle(500000);
+    });
+    document.getElementById('btn-reset').addEventListener('click', () => {
+      loadTritOSIntoBoth(false);
+      syncUI();
+      footerMsg.textContent = 'Machine reset to PC = 0, SP = -1.';
+    });
+    document.getElementById('btn-selfhost').addEventListener('click', () => {
+      sendCommand('asm');
+      const outLen = jsVm.mem[3198];
+      let diffs = 0;
+      for (let i = 0; i < builtOS.length; i++) {
+        if (jsVm.mem[6000 + i] !== builtOS.trytes[i] || wasmVm.getMem(6000 + i) !== builtOS.trytes[i]) {
+          diffs++;
+        }
+      }
+      footerMsg.textContent = `Self-Host Fixed-Point Check: In-OS Assembler emitted ${outLen} trytes (${diffs} byte differences vs JS Assembler).`;
+    });
+    document.getElementById('btn-export').addEventListener('click', () => {
+      const exported = exportSelfContainedHTML(document.documentElement.outerHTML, jsVm);
+      const blob = new Blob(['<!DOCTYPE html>\n' + exported], { type: 'text/html' });
+      const a = document.createElement('a');
+      a.href = URL.createObjectURL(blob);
+      a.download = 'triton-snapshot.html';
+      a.click();
+      footerMsg.textContent = `Exported self-contained HTML snapshot (Hash: 0x${computeStateHash(jsVm).toString(16)}).`;
+    });
+    document.getElementById('btn-send-cmd').addEventListener('click', () => {
+      if (!cmdInput.value) return;
+      sendCommand(cmdInput.value);
+      cmdInput.value = '';
+    });
+    cmdInput.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter' && cmdInput.value) {
+        sendCommand(cmdInput.value);
+        cmdInput.value = '';
+      }
+    });
+    document.querySelectorAll('.quick-cmds button').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        sendCommand(btn.getAttribute('data-cmd'));
+      });
+    });
+    document.getElementById('tab-asm').addEventListener('click', () => {
+      sourceEditor.value = TRITOS_SRC;
+    });
+    document.getElementById('tab-wat').addEventListener('click', () => {
+      sourceEditor.value = TRITON_WAT.trim();
+    });
+    document.getElementById('tab-assemble').addEventListener('click', () => {
+      try {
+        const res = assemble(sourceEditor.value);
+        jsVm.reset(true);
+        wasmVm.reset(true);
+        jsVm.mem.set(res.mem);
+        wasmVm.loadProgram(res.trytes, 0);
+        runBothUntilIdle(200000);
+        footerMsg.textContent = `Assembled & loaded ${res.length} trytes from editor.`;
+      } catch (err) {
+        footerMsg.textContent = `Assembly error: ${err.message}`;
+      }
+    });
+  });
+}
+</script>
+</body>
+</html>
