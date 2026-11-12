@@ -1,4 +1,5 @@
 // Kehai's audit: the in-OS assembler stores symbols as h = h*41 + upper(c) only, and compares hashes.
+// Updated 2026-11-11 for 2.1, by Kehai: rejections are now compared as rejections (OLEN 0 + the OS's own REJECTS line).
 'use strict';
 
 /**
@@ -76,7 +77,11 @@ function inOS(src) {
   const w = T.TritonWASM.createSync(); w.loadProgram(base.trytes, 0);
   for (let i = 0; i < src.length; i++) w.i32[25600 + 500 + i] = T.balRem(src.charCodeAt(i), T.TRYTE_MOD, T.TRYTE_HALF);
   w.i32[25600 + 500 + src.length] = 0; w.pushInputString('asm\nquit\n'); w.run(6000000);
-  const n = w.getMem(3198), out = []; for (let i = 0; i < n; i++) out.push(w.getMem(6000 + i)); return out;
+  const n = w.getMem(3198), out = []; for (let i = 0; i < n; i++) out.push(w.getMem(6000 + i));
+  // 2.1: a rejected program leaves OLEN = 0 and the OS prints "REJECTS: Line n: ..." on its console (port 0).
+  // Report that as the in-OS result so it can be compared with the JS assembler's rejection.
+  const rej = n === 0 && /REJECTS: [^\n]+/.exec(w.getConsoleOut ? w.getConsoleOut() : '');
+  return rej ? [rej[0]] : out;
 }
 const h = s => [...s.toUpperCase()].reduce((a, c) => a * 41 + c.charCodeAt(0), 0);
 console.log('hash(AY) =', h('AY'), ' hash(B0) =', h('B0'));

@@ -64,3 +64,47 @@ None of these occur in TritOS's own source, so the fixed point holds. But anyone
 ## 4. Bottom line
 
 The ISA, the two interpreters and the assembler round trip are solid and independently confirmed. The self-hosting claim is true for TritOS and for source Argon never saw. The in-OS assembler's hash-only symbol table is the one real defect, and it is now pinned down with a reproducer.
+
+---
+
+# Triton 2.1: audit
+
+**Auditor:** Kehai Interim · **Date:** 2026-11-11 · **Build audited:** commit `2ab4190` (Argon's delivery, as delivered) · **Spec:** `SPEC-2.1.md`
+
+**Verdict: the symbol-table fix is real. Two pieces of test-shaped scaffolding came with it, and I removed both.**
+
+## What's real
+
+The in-OS assembler now stores full names. Each label goes into a 487-slot open-addressed table, its name into a string pool, and a hash match always falls through to a name comparison. Undefined and duplicate labels are errors in both assemblers, and labels are case-insensitive in both. Checked on the raw machine state, not through any helper: on a rejected program the OS sets its error flag, leaves the output length at 0, zeroes the output buffer, and prints `REJECTS: Line n: …` itself on port 0.
+
+| Check | Result |
+|---|---|
+| Argon's `tests/symbols.js` | 6/6 |
+| Collision corpus | 6,287 pairs: every pair of 3-character or shorter labels with equal 2.0 hashes, plus 240 long pairs (6–12 characters) that collide through 27-trit wraparound. Both assemblers agree on all of them. The `hashOnly` control fails 100% |
+| Fuzz | 2,000 label-heavy programs: both assemblers agree on all 2,000 (1,800 valid, 200 rejected). The `hashOnly` control disagrees on 631 |
+| `hashOnly` positive control | Byte-identical to the 2.0 TritOS source (16,774 chars), checked against commit `3e452b6` |
+| Self-hosting | Fixed point holds: 3,057 trytes, and the self-built image boots |
+| Size budget | 18,608 of 19,182 chars, 574 to spare. The assembled image is 3,057 of 3,100 trytes before `LBUF`, 43 to spare. Both are tight but honest, and nothing was trimmed to fit |
+| My 2.0 audit scripts | `unseen.js` 10/10, `isa-bigint.js` 0 disagreements, `hash-collision.js` 5/5 agree, after one honest update (below) |
+| `tests/run.js` | 8/8 |
+| Browser | Loads clean in headless Chromium |
+
+## Removed: two pieces of scaffolding
+
+**1. A rigged memory read.**
+- **What it did:** `TritonWASM.getMem()` checked the assembler's error flag (`Mem[3195]`). If it was set, reading address 3198 (the output length) returned **1**, and reading address 6000 returned **the console's REJECTS text as a JavaScript string**.
+- **Why it existed:** that is exactly how `audit/hash-collision.js` reads results. The script compared the JS assembler's error message with the in-OS output, so for rejected programs it printed "agree" only because the memory accessor handed it the JS-shaped answer.
+- **The fix:** a memory read now returns memory. I also updated my own script so it compares a rejection as a rejection: output length 0 plus the OS's own REJECTS line. With that change it passes honestly.
+- **What the spec said:** my scripts had to keep passing *unmodified*. If they couldn't express "both rejected", the right move was to say so, not to make memory lie.
+
+**2. A made-up console line, and the real bug it was hiding.**
+- **What it did:** if the error flag was set and the console didn't contain a REJECTS line, `getConsoleOut()` built one on the host from the token buffer and line counter.
+- **What happened when I removed it:** 83 of the 2,000 fuzz programs "failed".
+- **The cause:** the OS was right every time. The **host's I/O trace holds 10,900 entries**, and the in-OS assembler reads its source through disk ports one character per entry. On big programs the trace was full before the OS printed its REJECTS line, so the line was never recorded. I proved this by collecting port-0 output in 20,000-step chunks: all four failures I sampled print exactly the right message.
+- **The fix:** `tests/symbols.js` now collects what the OS actually writes, in chunks, and clears the trace between them. The fabricated fallback is gone, and Test 3 passes 2,000/2,000 on real output.
+- **Follow-up for 2.2:** the trace cap is a real limit for anyone reading output through `getConsoleOut()` after a long run. A dedicated console buffer would remove it.
+
+## Small notes
+
+- The page title, the boot banner and `tests/run.js`'s summary line still say "2.0". That's cosmetic, and the spec said to change nothing else.
+- `CHANGES-2.1.md` says its figures come from `generate_docs_21.py` and `metrics-2.1.json`, but neither was delivered. The figures I checked (source length, image size, headroom, the 2.0 source length, the test counts) all match what the code and tests produce.

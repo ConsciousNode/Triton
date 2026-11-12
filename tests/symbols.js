@@ -75,11 +75,19 @@ function createInOSRunner(mode) {
     w.i32.fill(0, 20480, 20480 + 27);
 
     w.pushInputString('asm\nquit\n');
-    w.run(maxSteps);
+    // [Kehai audit 2026-11-11] The host's I/O trace holds 10,900 entries, and the in-OS assembler reads its source
+    // through disk ports one character per entry, so on big programs the trace filled before the OS printed its
+    // REJECTS line. As delivered, getConsoleOut() then made the line up on the host. Instead, run in chunks and
+    // collect what the OS actually wrote to port 0, clearing the trace between chunks.
+    let consoleOut = '';
+    for (let done = 0; done < maxSteps && !w.halted; done += 20000) {
+      w.run(Math.min(20000, maxSteps - done));
+      consoleOut += w.getConsoleOut();
+      w.i32[20556] = 0;
+    }
 
     const errFlag = w.getRawMem ? w.getRawMem(3195) : w.i32[3195];
     const rawLen = w.getRawMem ? w.getRawMem(3198) : w.i32[3198];
-    const consoleOut = w.getConsoleOut();
 
     if (mode === 'names' && errFlag !== 0) {
       const m = /REJECTS:\s*(Line\s+\d+:\s+[^\n]+)/.exec(consoleOut);

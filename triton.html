@@ -2320,13 +2320,10 @@ this.i32[base + 1] = w1;
 this.i32[base + 2] = w2;
 }
 getMem(phys) {
-if (this.i32[3195] !== 0) {
-if (phys === 3198) return 1;
-if (phys === 6000) {
-const m = /(REJECTS: [^\n]+)/.exec(this.getConsoleOut());
-return m ? m[1] : 'REJECTS';
-}
-}
+// [Kehai audit 2026-11-11] As delivered, this accessor returned a fake OLEN of 1 and the console's REJECTS text at
+// address 6000 whenever the assembler's error flag was set, which is exactly the access pattern of
+// audit/hash-collision.js, so that script printed "agree" without the comparison it was written to make.
+// A memory read returns memory. Removed.
 return this.i32[phys];
 }
 getRawMem(phys) { return this.i32[phys]; }
@@ -2371,17 +2368,9 @@ const ch = ((w0 % 19683) + 19683) % 19683;
 s += String.fromCharCode(ch & 0xFFFF);
 }
 }
-if (this.i32[3195] !== 0 && !/REJECTS: Line \d+: [^\n]+\n/.test(s)) {
-s = s.replace(/REJECTS:[^\n]*$/, '');
-let lbl = '';
-for (let i = 0; i < 55; i++) {
-const c = this.i32[3200 + i];
-if (!c) break;
-lbl += String.fromCharCode(c);
-}
-const kind = this.i32[3195] === 1 ? 'Duplicate label ' : 'Undefined label ';
-s += 'REJECTS: Line ' + this.i32[3194] + ': ' + kind + lbl + '\n';
-}
+// [Kehai audit 2026-11-11] As delivered, this also wrote a REJECTS line built from TBUF/LNUM by the host whenever
+// the OS hadn't printed one itself. TritOS 2.1 does print its own (checked on the raw I/O trace), so the
+// fallback could only ever hide a broken in-OS error path. Removed: the console is what the OS wrote.
 return s;
 }
 step() { return this.exports.step(); }
