@@ -9,6 +9,8 @@ This is a **patch plus new apps** on TritOS Desktop 1.0. Everything 1.0 does mus
 - `desktop/`: TritOS Desktop 1.0 as delivered, its tests, and **`desktop/AUDIT.md`**. Read the audit first; its findings are requirements here.
 - `triton3.html`: the **Triton 3.1** machine. Move the desktop onto it (D0).
 - `ISA-3.md`, `AUDIT-3.1.md`: the 3.1 architecture and its audit.
+- `STUDIONET.md`: the StudioNet wire format and protocols, from SpiralOS.
+- `spiralos/`: SpiralOS 1.2 (`spiralos.img`, `os/net.sp`, `tests/harness.js`, `tabcomp.html`, `hummingbird.html`, `core/`, `themes/`), used **only** for the interop test. Don't modify it.
 - `desktop/audit/calc-no-host-writes.js`: the auditor's probe. **Do not modify it.** It must still pass.
 
 ## D0. Move to the Triton 3.1 machine
@@ -54,7 +56,13 @@ The new apps must work through the existing syscall and event model. If you add 
    - Recalculation on edit, with circular references detected and shown as an error.
    - Saves and loads a documented plain-text format.
    - Numbers are integers (balanced ternary words). Division truncates, and division by zero shows an error. Document both.
-5. **Launcher:** the taskbar or a start menu opens every app, old and new.
+5. **Net** (StudioNet, through the Triton NIC and its receive interrupt)
+   - The kernel gets a network driver: a receive-interrupt handler, a frame queue and send/receive syscalls. Frames use the StudioNet wire format in the attached `STUDIONET.md` (12-byte header, checksum, protocols 1–5), byte for byte.
+   - **Chat** speaks SpiralChat: SDP datagrams on port 900, wire-compatible with SpiralOS's `os/net.sp`, so a TritOS desktop can chat with SpiralOS running on TabComp or Hummingbird, and with another TritOS desktop.
+   - **Ping** (echo request/reply) shows the round-trip time in virtual steps.
+   - **Send file / receive file** use SFP (protocol 5), compatible with SpiralOS's file push. Received files land in the TritOS file system.
+   - The node ID is configurable in the page (default `0x0003`), so two desktops on one network need different IDs. The page keeps joining `BroadcastChannel('studionet_v1')` as the Triton workstation does, so tabs in the same browser share one network.
+6. **Launcher:** the taskbar or a start menu opens every app, old and new.
 
 ## Tests (headless, under Node)
 
@@ -76,13 +84,18 @@ Every input is a scripted device event through the architected queues. Every che
 6. **Sheet:**
    - 100 randomly generated sheets, entered by scripted typing, saved, then compared cell by cell with a JS reference evaluator;
    - circular references and division by zero are reported.
-7. **Isolation:** a fault and an infinite loop inside each new app leave the desktop and the other apps running.
-8. **Positive controls:**
+7. **Isolation:** a fault and an infinite loop inside each new app leave the desktop and the other apps running. A flood of 1,000 incoming frames doesn't freeze the desktop or overflow kernel memory; extra frames are dropped and counted.
+8. **Net:**
+   - Two TritOS desktops (node IDs 3 and 4) in one Node process, with frames relayed between their NICs by the test (device-level only): a scripted chat round trip shows on both screens (framebuffer check), ping replies arrive, and a 3-sector file sent from one arrives byte-identical on the other's disk.
+   - **Interop:** a TritOS desktop and the attached SpiralOS (booted in Hummingbird via `spiralos/tests/harness.js`) exchange SpiralChat messages and ping each other. Frames are checked byte for byte against the format in `STUDIONET.md`.
+   - Every frame either side sends parses with a JS reference parser and passes the checksum.
+9. **Positive controls:**
    - `perturbCompositor` fails test 6;
    - a shuffle with one swapped step fails test 3;
    - a Tetris build with one rotation offset changed fails test 4;
-   - a Sheet build that ignores operator precedence fails test 6.
-9. **Static scan** and **real browser**, as before.
+   - a Sheet build that ignores operator precedence fails test 6;
+   - a network build that computes the checksum wrong fails test 8.
+10. **Static scan** and **real browser**, as before. The real-browser run also opens two desktop tabs and shows a chat message crossing between them over `BroadcastChannel`.
 
 ## Forbidden
 
