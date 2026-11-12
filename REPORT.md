@@ -85,3 +85,38 @@ Every boundary where `ISA.md`, the JS reference interpreter (`TritonJS`), the Mi
 | **`TUNARY` Triad Trit Ordering** | Section 4.2: Low triad $M = m_0 + 3 m_1 + 9 m_2 \in [-13, +13]$ maps input trit $-1 \to m_0$, $0 \to m_1$, $+1 \to m_2$. | All 27 truth-table triads ($-13 \dots +13$) are tested in Test 1 across `PureTritOracle`, `TritonJS`, and `TritonWASM`. |
 | **Unused Instruction Fields in Disassembler** | Section 2.3: Unused register/immediate fields are `0` (`R0` / `000000000`). | `disassembleInstruction` checks canonical zero fields and falls back to `.tryte` only for non-canonical data; Test 3 verifies round-trip identity across all 46 opcodes. |
 | **27-Trit `.word` Directives in Self-Hosting Assembler** | Section 9: `.word` emits 3 consecutive trytes in little-endian order $(W_0, W_1, W_2)$. | Both `assembler.js` and `TRITOS_SRC` (`asm_dir_word` via `SW R0, R1, #0`) emit identical 3-tryte words; verified by Test 4 on `mnem_table` and Edited Copy 3. |
+
+
+## 5. Triton 2.1 Symbol-Table Patch & Verification Results (`names` vs. `hashOnly`)
+
+*All figures in this section are generated programmatically by `generate_docs_21.py` from `node tests/symbols.js` (`metrics-2.1.json`).*
+
+### 5.1 Summary of the 2.1 Patch and Source Budget
+
+Triton 2.1 resolves the four assembler symbol-table defects identified in `AUDIT.md` without altering the ISA, VM execution semantics, or opcode encodings:
+1. **Full-Name Symbol Table (`STAB` + `SPOOL`)**: The in-OS assembler uses a 487-slot open-addressed hash table (`STAB` at `Mem[3260..5694]`, 5 trytes/slot) backed by a null-terminated uppercase string pool (`SPOOL` at `Mem[9500..18999]`). A 27-trit hash hit triggers a character-by-character comparison between `TBUF` (`Mem[3200..]`) and `SPOOL[name_ptr]`; a hash match alone never resolves a symbol.
+2. **Undefined & Duplicate Label Errors**: Both assemblers reject undefined labels and duplicate labels (including case-only duplicates such as `Loop` and `LOOP`), reporting the 1-based line number and uppercase label name (`Line <N>: Undefined label <NAME>` / `Line <N>: Duplicate label <NAME>`). In-OS prints `REJECTS: Line <N>: ...` to the shell and writes zero output trytes (`OLEN = 0`, `OBUF` zeroed).
+3. **Unified Case-Insensitive Rule**: Both assemblers normalize identifiers to uppercase (`ISA.md` §9 & §9.1).
+4. **Source Budget Against the 19,182-Character Cap**:
+   - Triton 2.0 (`hashOnly`) source length: **`16,774` characters** (`2,752` assembled trytes).
+   - Triton 2.1 (`names`) source length: **`18,608` characters** (`3,057` assembled trytes, `+1,834` characters).
+   - `Disk[500..19682]` source cap: **`19,182` characters**.
+   - Remaining headroom: **`574` characters**.
+
+### 5.2 Collision Search Methodology (`tests/symbols.js` Test 1)
+
+1. **Exhaustive Short-Identifier Enumeration (Length $\le 3$)**:
+   Over the uppercase identifier alphabet (`A`–`Z`, `_` for the first character; `A`–`Z`, `0`–`9`, `_` for subsequent characters, excluding the 73 reserved register/mnemonic names), there are exactly **`37,933`** valid identifiers of length $\le 3$. Grouping by `tokenHash27` yields **`6,047`** distinct colliding pairs (from algebraic relations $41 \Delta c_0 + \Delta c_1 = 0$, such as `AY`/`B0`, `AAY`/`AB0`, `AA_`/`AB6`).
+2. **27-Trit Wraparound Collision Search (Length 6–12)**:
+   For identifiers of length $L \ge 9$, `tokenHash27` wraps modulo $3^{27} = 7,625,597,484,987$. Expanding multiples $k \cdot 3^{27}$ ($1 \le k \le 12$) in **balanced base 41** produces 9-digit vectors $(d_8, \dots, d_0)$ with $d_i \in [-20, +20]$ (for $k = 1$, $3^{27} = (1, -2, 6, 15, -20, -17, 13, 5, -14)_{41}$). Because the 26 uppercase letters `A`–`Z` span 25 consecutive ASCII values ($65 \dots 90$), every digit $d_i \in [-20, +20]$ decomposes into letter pairs $(c_{1,i}, c_{2,i}) \in [\text{'A'}, \text{'Z'}]^2$ with $c_{1,i} - c_{2,i} = d_i$. Varying base letters and prefixes (`""`, `"X"`, `"TR"`, `"LBL"`) yields **`240`** distinct pairs of length 9–12 whose un-wrapped polynomial hashes differ by $k \cdot 3^{27}$ while their 27-trit wrapped hashes are identical.
+
+### 5.3 Side-by-Side Test Results: `symbolMode: "names"` (2.1) vs. `symbolMode: "hashOnly"` (2.0 Control)
+
+| Test Suite in `tests/symbols.js` | `symbolMode: "names"` (Triton 2.1) | `symbolMode: "hashOnly"` (Triton 2.0 Control) |
+| :--- | :--- | :--- |
+| **1. Collision Corpus (6,287 pairs: 6,047 len $\le 3$ + 240 len 9–12 wraparound)** | **`6287/6287` pass** (`0.0%` fail, `2677 ms`) | **`6287/6287` fail** (`100.0%` fail $\ge 99\%$ caught, `1852 ms`) |
+| **2. Undefined, Duplicate & Case-Duplicate Labels (12 cases)** | **`12/12` rejected identically** (same line & label, `0` output trytes, `11 ms`) | **`0/12` rejected** (silently accepts all 12, caught, `9 ms`) |
+| **3. Differential Fuzz (2,000 label-heavy programs, 50–300 labels, seeds `0x210000..0x1128c41`)** | **`2000/2000` agree** (`1800` valid + `200` rejected, `24581 ms`) | **`631/2000` disagree** (`1369/2000` agree, `29824 ms`) |
+| **4. Self-Hosting Fixed Point & Budget** | **`3057` trytes byte-identical**, self-built image boots (`18,608/19,182` chars, `574` headroom) | `2752` trytes (`16,774/19,182` chars) |
+| **5. Unmodified Regressions (`tests/run.js`, `audit/unseen.js`, `audit/isa-bigint.js`, `audit/hash-collision.js`)** | **`tests/run.js`: 8/8 pass** · **`unseen.js`: 6/6 + 4/4`** · **`isa-bigint.js`: 0 diffs** · **`hash-collision.js`: 5/5 agree** (`8448 ms`) | `hash-collision.js`: 4/5 `DISAGREE` |
+| **6. Static Scan (`triton.html`, `159,352` bytes)** | **Pass** (strict CSP verified, `0` network/storage APIs, `7/7` inlines labeled) | — |

@@ -217,19 +217,31 @@ In `Tryte 0`, `OPCODE` occupies trits $t_8 t_7 t_6 t_5 t_4$ (weight $3^4 = 81$),
 ```ebnf
 program       = { line } ;
 line          = [ label_def ] [ statement ] [ comment ] EOL ;
-label_def     = identifier ":" ;
+label_def     = identifier ":" ; (* case-insensitive: normalized to uppercase *)
 statement     = directive | instruction ;
 directive     = ".org" imm_expr
               | ".tryte" imm_expr { "," imm_expr }
               | ".word" imm_expr { "," imm_expr }
               | ".string" string_lit
               | ".equ" identifier "," imm_expr ;
-instruction   = mnemonic [ operand { "," operand } ] ;
+instruction   = mnemonic [ operand { "," operand } ] ; (* mnemonic is case-insensitive *)
 operand       = register | imm_expr ;
 register      = ( "R0" | "R1" | "R2" | "R3" | "R4" | "R5" | "R6" | "R7" | "R8" ) ; (* case-insensitive *)
-imm_expr      = [ "#" ] ( ternary_lit | decimal_lit | char_lit | identifier ) ;
+imm_expr      = [ "#" ] ( ternary_lit | decimal_lit | char_lit | identifier ) [ ( "+" | "-" ) ( ternary_lit | decimal_lit | char_lit | identifier ) ] ;
+identifier    = ( letter | "_" | "." | "$" ) { letter | digit | "_" | "." | "$" } ; (* case-insensitive *)
 ternary_lit   = "0t" { "T" | "0" | "1" } ; (* MSB-first balanced ternary literal *)
 decimal_lit   = [ "+" | "-" ] digit { digit } ;
 char_lit      = "'" character "'" ;
 comment       = ";" { character } ;
 ```
+
+### 9.1 Symbol Table Resolution, Case Rule & Error Semantics (Triton 2.1)
+
+1. **Case-Insensitive Identifiers**: All labels, `.equ` symbol names, mnemonics, directives, and register names are **case-insensitive** in both the JavaScript reference assembler and the in-OS self-hosting assembler. Identifiers are canonicalized to ASCII uppercase (`a`–`z` $	o$ `A`–`Z`) upon lexing, so `Loop:` and `LOOP:` refer to the same symbol `LOOP`.
+2. **Full-Name Symbol Resolution**:
+   - In the in-OS assembler (`symbolMode: "names"`, default in 2.1), each symbol entry in `STAB` (`Mem[3260..]`, 5 trytes per entry) stores the 27-trit rolling hash (`entry + 0..2`, computed via $h \leftarrow (h \cdot 41 + 	ext{upper}(c)) mod_{	ext{bal}} 3^{27}$), the 9-trit symbol value (`entry + 3`), and a 9-trit pointer (`entry + 4`) to the symbol's null-terminated uppercase string in the string pool `SPOOL` (`Mem[9500..]`).
+   - During symbol lookup (`a_sl`), the 27-trit hash is used only as a fast filter; on any hash match, the assembler compares the candidate symbol's null-terminated string in `SPOOL` against the current token buffer `TBUF` (`Mem[3200..]`) character-by-character until the terminating `0` tryte. A hash match alone never resolves a symbol.
+3. **Assembler Error Conditions (Undefined & Duplicate Labels)**:
+   - **Duplicate Labels**: Defining the same label or `.equ` symbol more than once (including case-only variants such as `Loop:` followed by `LOOP:`) is an error in Pass 1 on the line of the duplicate definition, formatted as `Line <N>: Duplicate label <NAME>` (where `<N>` is the 1-based line number and `<NAME>` is the uppercase symbol name).
+   - **Undefined Labels**: Referencing any symbol not defined in the program is an error in Pass 2 on the line of the reference, formatted as `Line <N>: Undefined label <NAME>`.
+   - **In-OS Error Behavior**: When the in-OS assembler encounters an error, it prints `REJECTS: Line <N>: Duplicate label <NAME>` or `REJECTS: Line <N>: Undefined label <NAME>` to the shell console (`Port 0`), sets the error flag `EFLG` (`Mem[3195] = 1`), zeroes any partial output in `OBUF` (`Mem[6000..]`), sets the emitted output length `OLEN` (`Mem[3198]`) to `0`, and aborts assembly without writing an output image.

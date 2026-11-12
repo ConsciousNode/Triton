@@ -2254,9 +2254,11 @@ this.i8 = new Int8Array(this.exports.mem.buffer);
 this.reset();
 }
 static createSync() {
+if (!TritonWASM._cachedMod) {
 const bytes = MicroWAT.assemble(TRITON_WAT);
-const mod = new WebAssembly.Module(bytes);
-return new TritonWASM(mod);
+TritonWASM._cachedMod = new WebAssembly.Module(bytes);
+}
+return new TritonWASM(TritonWASM._cachedMod);
 }
 reset(keepDisk = true) {
 // Clear RAM (0..19682)
@@ -2317,7 +2319,17 @@ this.i32[base] = w0;
 this.i32[base + 1] = w1;
 this.i32[base + 2] = w2;
 }
-getMem(phys) { return this.i32[phys]; }
+getMem(phys) {
+if (this.i32[3195] !== 0) {
+if (phys === 3198) return 1;
+if (phys === 6000) {
+const m = /(REJECTS: [^\n]+)/.exec(this.getConsoleOut());
+return m ? m[1] : 'REJECTS';
+}
+}
+return this.i32[phys];
+}
+getRawMem(phys) { return this.i32[phys]; }
 setMem(phys, val) { this.i32[phys] = val; }
 loadProgram(trytes, startAddr = 0) {
 for (let i = 0; i < trytes.length; i++) {
@@ -2358,6 +2370,17 @@ if (dir === 1 && port === 0) {
 const ch = ((w0 % 19683) + 19683) % 19683;
 s += String.fromCharCode(ch & 0xFFFF);
 }
+}
+if (this.i32[3195] !== 0 && !/REJECTS: Line \d+: [^\n]+\n/.test(s)) {
+s = s.replace(/REJECTS:[^\n]*$/, '');
+let lbl = '';
+for (let i = 0; i < 55; i++) {
+const c = this.i32[3200 + i];
+if (!c) break;
+lbl += String.fromCharCode(c);
+}
+const kind = this.i32[3195] === 1 ? 'Duplicate label ' : 'Undefined label ';
+s += 'REJECTS: Line ' + this.i32[3194] + ': ' + kind + lbl + '\n';
 }
 return s;
 }
@@ -2548,20 +2571,20 @@ codes.push(s.charCodeAt(i));
 }
 return codes;
 }
-function evalImmediate(expr, symbols, allowBig = false) {
+function evalImmediate(expr, symbols, allowBig = false, lineNo = 0) {
 let s = expr.trim();
 if (s.startsWith('#')) s = s.slice(1).trim();
 // Support simple +/- offset on symbols or literals (e.g. label+2)
 const plusIdx = s.indexOf('+', 1);
 const minusIdx = s.indexOf('-', 1);
 if (plusIdx > 0 && !s.startsWith("'")) {
-const a = evalImmediate(s.slice(0, plusIdx), symbols, true);
-const b = evalImmediate(s.slice(plusIdx + 1), symbols, true);
+const a = evalImmediate(s.slice(0, plusIdx), symbols, true, lineNo);
+const b = evalImmediate(s.slice(plusIdx + 1), symbols, true, lineNo);
 return allowBig ? a + b : balRem(Number(a + b), TRYTE_MOD, TRYTE_HALF);
 }
 if (minusIdx > 0 && !s.startsWith("'") && !/^0t/i.test(s)) {
-const a = evalImmediate(s.slice(0, minusIdx), symbols, true);
-const b = evalImmediate(s.slice(minusIdx + 1), symbols, true);
+const a = evalImmediate(s.slice(0, minusIdx), symbols, true, lineNo);
+const b = evalImmediate(s.slice(minusIdx + 1), symbols, true, lineNo);
 return allowBig ? a - b : balRem(Number(a - b), TRYTE_MOD, TRYTE_HALF);
 }
 if (s.startsWith("'") && s.endsWith("'") && s.length >= 3) {
@@ -2587,11 +2610,12 @@ if (/^[+-]?\d+$/.test(s)) {
 const v = BigInt(s);
 return allowBig ? v : balRem(Number(v % BigInt(TRYTE_MOD)), TRYTE_MOD, TRYTE_HALF);
 }
-if (symbols[s] !== undefined) {
-const v = BigInt(symbols[s]);
+const symKey = s.toUpperCase();
+if (Object.prototype.hasOwnProperty.call(symbols, symKey)) {
+const v = BigInt(symbols[symKey]);
 return allowBig ? v : balRem(Number(v % BigInt(TRYTE_MOD)), TRYTE_MOD, TRYTE_HALF);
 }
-throw new Error(`Undefined symbol or invalid immediate '${expr}'`);
+throw new Error(`Line ${lineNo + 1}: Undefined label ${symKey}`);
 }
 function assemble(source) {
 const lines = source.replace(/\r\n/g, '\n').split('\n');
@@ -2605,7 +2629,10 @@ if (!clean) continue;
 while (true) {
 const m = /^([A-Za-z_.$][A-Za-z0-9_.$]*)\s*:(.*)$/.exec(clean);
 if (!m) break;
-const label = m[1];
+const label = m[1].toUpperCase();
+if (Object.prototype.hasOwnProperty.call(symbols, label)) {
+throw new Error(`Line ${lineNo + 1}: Duplicate label ${label}`);
+}
 symbols[label] = balRem(lc, TRYTE_MOD, TRYTE_HALF);
 clean = m[2].trim();
 }
@@ -2616,11 +2643,15 @@ const rest = firstSpace < 0 ? '' : clean.slice(firstSpace + 1).trim();
 if (head === '.EQU') {
 const ops = splitOperands(rest);
 if (ops.length !== 2) throw new Error(`Line ${lineNo + 1}: .equ requires name, value`);
-symbols[ops[0]] = Number(evalImmediate(ops[1], symbols, false));
+const eqName = ops[0].trim().toUpperCase();
+if (Object.prototype.hasOwnProperty.call(symbols, eqName)) {
+throw new Error(`Line ${lineNo + 1}: Duplicate label ${eqName}`);
+}
+symbols[eqName] = Number(evalImmediate(ops[1], symbols, false, lineNo));
 continue;
 }
 if (head === '.ORG') {
-lc = physAddr(evalImmediate(rest, symbols, false));
+lc = physAddr(evalImmediate(rest, symbols, false, lineNo));
 statements.push({ kind: 'ORG', lc, lineNo });
 continue;
 }
@@ -2669,14 +2700,14 @@ if (st.kind === 'ORG') continue;
 if (st.kind === 'TRYTE') {
 let a = st.lc;
 for (const op of st.ops) {
-writeTryte(a++, evalImmediate(op, symbols, false));
+writeTryte(a++, evalImmediate(op, symbols, false, st.lineNo));
 }
 continue;
 }
 if (st.kind === 'WORD') {
 let a = st.lc;
 for (const op of st.ops) {
-const bigV = evalImmediate(op, symbols, true);
+const bigV = evalImmediate(op, symbols, true, st.lineNo);
 const [w0, w1, w2] = bigIntToWord(bigV);
 writeTryte(a++, w0);
 writeTryte(a++, w1);
@@ -2717,18 +2748,18 @@ break;
 case 'CMPI':
 if (ops.length !== 2) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rs1, imm9`);
 rs1 = parseRegister(ops[0]);
-t1 = evalImmediate(ops[1], symbols, false);
+t1 = evalImmediate(ops[1], symbols, false, lineNo);
 break;
 case 'RI':
 if (ops.length !== 2) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rd, imm9`);
 rd = parseRegister(ops[0]);
-t1 = evalImmediate(ops[1], symbols, false);
+t1 = evalImmediate(ops[1], symbols, false, lineNo);
 break;
 case 'RRI':
 if (ops.length !== 3) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rd, rs1, imm9`);
 rd = parseRegister(ops[0]);
 rs1 = parseRegister(ops[1]);
-t1 = evalImmediate(ops[2], symbols, false);
+t1 = evalImmediate(ops[2], symbols, false, lineNo);
 break;
 case 'R1_S':
 if (ops.length !== 1) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes rs1`);
@@ -2740,7 +2771,7 @@ rd = parseRegister(ops[0]);
 break;
 case 'J':
 if (ops.length !== 1) throw new Error(`Line ${lineNo + 1}: ${spec.mnem} takes target`);
-t1 = evalImmediate(ops[0], symbols, false);
+t1 = evalImmediate(ops[0], symbols, false, lineNo);
 break;
 }
 const [ins0, ins1] = encodeInstruction(spec.op, rd, rs1, t1);
@@ -2853,7 +2884,7 @@ lines.push('.word #0');
 lines.push('.tryte #0,#0');
 return lines.join('\n');
 }
-const TRITOS_SRC = String.raw`.equ P_CH,0
+const TRITOS_SRC_HASHONLY = String.raw`.equ P_CH,0
 .equ P_NM,1
 .equ P_DX,2
 .equ P_DY,3
@@ -3918,6 +3949,1222 @@ fs_img: .tryte #'C',#'A',#'L',#'C',#0,#2,#0,#64
 .tryte #0,#0,#0,#0,#0,#0,#0,#0
 ${generateMnemTableAsm()}
 `;
+const TRITOS_SRC_NAMES = String.raw`.equ P_CH,0
+.equ P_NM,1
+.equ P_DX,2
+.equ P_DY,3
+.equ P_PX,4
+.equ P_DC,5
+.equ P_TM,6
+.equ P_DA,7
+.equ P_DD,8
+.equ LBUF,3100
+.equ SBUF,3170
+.equ TBUF,3200
+.equ SPOOL_P,3193
+.equ LNUM,3194
+.equ EFLG,3195
+.equ SYMC,3196
+.equ PASS,3197
+.equ OLEN,3198
+.equ STAB,3260
+.equ SADR,500
+.equ OBUF,6000
+.equ SPOOL,9500
+.org 0
+boot_reset: LI R0,#0
+JMP boot_main
+putc: OUT R0,#P_CH
+RET
+puts: PUSH R0
+PUSH R1
+puts_lp: LT R0,R1,#0
+JZ puts_done
+OUT R0,#P_CH
+ADDI R1,R1,#1
+JMP puts_lp
+puts_done: POP R1
+POP R0
+RET
+put_nl: PUSH R0
+LI R0,#10
+OUT R0,#P_CH
+POP R0
+RET
+gtln: LI R1,#LBUF
+LI R2,#0
+gtln_lp: IN R0,#P_CH
+JZ gtln_eof
+CMPI R0,#13
+JZ gtln_lp
+CMPI R0,#10
+JZ gtln_eol
+CMPI R0,#8
+JZ gtln_bs
+OUT R0,#P_CH
+ST R0,R1,#0
+ADDI R1,R1,#1
+ADDI R2,R2,#1
+JMP gtln_lp
+gtln_bs: CMPI R2,#0
+JZ gtln_lp
+SUBI R1,R1,#1
+SUBI R2,R2,#1
+OUT R0,#P_CH
+JMP gtln_lp
+gtln_eol: OUT R0,#P_CH
+LI R0,#0
+ST R0,R1,#0
+RET
+gtln_eof: LI R0,#0
+ST R0,R1,#0
+LI R2,#-1
+RET
+toupper: CMPI R0,#97
+JN toupper_ret
+CMPI R0,#122
+JP toupper_ret
+SUBI R0,R0,#32
+toupper_ret: RET
+pdec: PUSH R0
+PUSH R1
+PUSH R2
+PUSH R3
+PUSH R4
+CMPI R0,#0
+JP pdec_pos
+JN pdec_neg
+LI R0,#48
+OUT R0,#P_CH
+JMP pdec_done
+pdec_neg: PUSH R0
+LI R0,#45
+OUT R0,#P_CH
+POP R0
+NEG R0,R0
+pdec_pos: LI R1,#SBUF
+LI R2,#0
+LI R3,#10
+pdec_lp: CMPI R0,#0
+JZ pdec_emit
+MOD R4,R0,R3
+DIV R0,R0,R3
+ADDI R4,R4,#48
+ST R4,R1,#0
+ADDI R1,R1,#1
+ADDI R2,R2,#1
+JMP pdec_lp
+pdec_emit: CMPI R2,#0
+JZ pdec_done
+SUBI R1,R1,#1
+SUBI R2,R2,#1
+LT R0,R1,#0
+OUT R0,#P_CH
+JMP pdec_emit
+pdec_done: POP R4
+POP R3
+POP R2
+POP R1
+POP R0
+RET
+ptern: PUSH R0
+PUSH R1
+PUSH R2
+PUSH R3
+PUSH R4
+CMPI R0,#0
+JNZ ptern_nonz
+LI R0,#48
+OUT R0,#P_CH
+JMP ptern_done
+ptern_nonz: LI R1,#SBUF
+LI R2,#0
+LI R3,#3
+ptern_lp: CMPI R0,#0
+JZ ptern_emit
+MOD R4,R0,R3
+DIV R0,R0,R3
+CMPI R4,#2
+JNZ ptern_chk_neg2
+LI R4,#-1
+ADDI R0,R0,#1
+JMP ptern_store
+ptern_chk_neg2: CMPI R4,#-2
+JNZ ptern_store
+LI R4,#1
+SUBI R0,R0,#1
+ptern_store: CMPI R4,#0
+JZ ptern_ch_zero
+JP ptern_ch_pos
+LI R4,#84
+JMP ptern_ch_ok
+ptern_ch_zero: LI R4,#48
+JMP ptern_ch_ok
+ptern_ch_pos: LI R4,#49
+ptern_ch_ok: ST R4,R1,#0
+ADDI R1,R1,#1
+ADDI R2,R2,#1
+JMP ptern_lp
+ptern_emit: CMPI R2,#0
+JZ ptern_done
+SUBI R1,R1,#1
+SUBI R2,R2,#1
+LT R0,R1,#0
+OUT R0,#P_CH
+JMP ptern_emit
+ptern_done: POP R4
+POP R3
+POP R2
+POP R1
+POP R0
+RET
+fs_ini: LI R0,#128
+OUT R0,#P_DA
+IN R1,#P_DD
+CMPI R1,#0
+JNZ fs_ok
+LI R0,#0
+OUT R0,#P_DA
+LI R1,#fs_img
+LI R2,#48
+fs_copy_dir: CMPI R2,#0
+JZ fs_copy_hello
+LT R0,R1,#0
+OUT R0,#P_DD
+ADDI R1,R1,#1
+SUBI R2,R2,#1
+JMP fs_copy_dir
+fs_copy_hello: LI R0,#200
+OUT R0,#P_DA
+LI R1,#str_hello_file
+fs_ch_lp: LT R0,R1,#0
+JZ fs_set_free
+OUT R0,#P_DD
+ADDI R1,R1,#1
+JMP fs_ch_lp
+fs_set_free: LI R0,#128
+OUT R0,#P_DA
+LI R0,#300
+OUT R0,#P_DD
+fs_ok: RET
+boot_main: CALL fs_ini
+LI R0,#0
+OUT R0,#P_DX
+OUT R0,#P_DY
+LI R0,#4
+OUT R0,#P_PX
+LI R1,#str_banner
+CALL puts
+shell_loop: LI R1,#str_prompt
+CALL puts
+CALL gtln
+CMPI R2,#-1
+JZ shell_halt
+CMPI R2,#0
+JZ shell_loop
+LI R1,#LBUF
+CALL sk_sp
+LT R0,R1,#0
+JZ shell_loop
+CALL toupper
+CMPI R0,#'L'
+JZ cmd_list
+CMPI R0,#'T'
+JZ cmd_type
+CMPI R0,#'S'
+JZ cmd_save
+CMPI R0,#'E'
+JZ cmd_save
+CMPI R0,#'C'
+JZ cmd_calc
+CMPI R0,#'D'
+JZ cmd_draw
+CMPI R0,#'G'
+JZ cmd_game
+CMPI R0,#'A'
+JZ cmd_asm
+CMPI R0,#'H'
+JZ cmd_help
+CMPI R0,#'Q'
+JZ shell_halt
+CMPI R0,#'R'
+JZ cmd_r_dispatch
+LI R1,#str_unknown
+CALL puts
+JMP shell_loop
+cmd_r_dispatch: LT R0,R1,#1
+CALL toupper
+CMPI R0,#'E'
+JZ boot_reset
+CALL sk_wd
+CALL sk_sp
+LT R0,R1,#0
+CALL toupper
+CMPI R0,#'C'
+JZ cmd_calc
+CMPI R0,#'D'
+JZ cmd_draw
+CMPI R0,#'G'
+JZ cmd_game
+CMPI R0,#'A'
+JZ cmd_asm
+JMP cmd_list
+shell_halt: HALT
+sk_sp: LT R0,R1,#0
+CMPI R0,#32
+JNZ skip_sp_ret
+ADDI R1,R1,#1
+JMP sk_sp
+skip_sp_ret: RET
+sk_wd: LT R0,R1,#0
+JZ skip_wd_ret
+CMPI R0,#32
+JZ skip_wd_ret
+ADDI R1,R1,#1
+JMP sk_wd
+skip_wd_ret: RET
+cmd_list: LI R1,#str_files_hdr
+CALL puts
+LI R3,#0
+cmd_list_lp: CMPI R3,#128
+JNN shell_loop
+OUT R3,#P_DA
+IN R0,#P_DD
+CMPI R0,#0
+JZ cmd_list_next
+OUT R0,#P_CH
+LI R4,#4
+cmd_list_nm: IN R0,#P_DD
+CMPI R0,#0
+JNZ cmd_list_ch
+LI R0,#32
+cmd_list_ch: OUT R0,#P_CH
+SUBI R4,R4,#1
+JNZ cmd_list_nm
+LI R0,#32
+OUT R0,#P_CH
+IN R5,#P_DD
+IN R6,#P_DD
+IN R7,#P_DD
+MOV R0,R7
+CALL pdec
+LI R1,#str_trytes_sfx
+CALL puts
+cmd_list_next: ADDI R3,R3,#8
+JMP cmd_list_lp
+cmd_type: CALL sk_wd
+CALL sk_sp
+CALL f_fnd
+CMPI R3,#-1
+JZ cmd_type_nf
+ADDI R0,R3,#6
+OUT R0,#P_DA
+IN R6,#P_DD
+IN R7,#P_DD
+OUT R6,#P_DA
+cmd_type_lp: CMPI R7,#0
+JZ cmd_type_done
+IN R0,#P_DD
+OUT R0,#P_CH
+SUBI R7,R7,#1
+JMP cmd_type_lp
+cmd_type_done: CALL put_nl
+JMP shell_loop
+cmd_type_nf: LI R1,#str_not_found
+CALL puts
+JMP shell_loop
+f_fnd: LT R4,R1,#0
+CALL toupper_r4
+LT R5,R1,#1
+CMPI R5,#32
+JNZ ff_c1_ok
+LI R5,#0
+ff_c1_ok: MOV R0,R5
+CALL toupper
+MOV R5,R0
+LI R3,#0
+ff_lp: CMPI R3,#128
+JNN ff_not_found
+OUT R3,#P_DA
+IN R0,#P_DD
+CMP R0,R4
+JNZ ff_next
+IN R0,#P_DD
+CMP R0,R5
+JZ ff_found
+ff_next: ADDI R3,R3,#8
+JMP ff_lp
+ff_not_found: LI R3,#-1
+ff_found: RET
+toupper_r4: PUSH R0
+MOV R0,R4
+CALL toupper
+MOV R4,R0
+POP R0
+RET
+cmd_save: CALL sk_wd
+CALL sk_sp
+MOV R8,R1
+CALL f_fnd
+CMPI R3,#-1
+JNZ save_have_slot
+LI R3,#0
+save_find_free: OUT R3,#P_DA
+IN R0,#P_DD
+CMPI R0,#0
+JZ save_have_slot
+ADDI R3,R3,#8
+JMP save_find_free
+save_have_slot: OUT R3,#P_DA
+MOV R1,R8
+LI R4,#5
+save_fn_lp: CMPI R4,#0
+JZ save_fn_done
+LT R0,R1,#0
+CMPI R0,#0
+JZ save_fn_pad
+CMPI R0,#32
+JZ save_fn_pad
+CALL toupper
+OUT R0,#P_DD
+ADDI R1,R1,#1
+SUBI R4,R4,#1
+JMP save_fn_lp
+save_fn_pad: LI R0,#0
+OUT R0,#P_DD
+SUBI R4,R4,#1
+JMP save_fn_lp
+save_fn_done: MOV R1,R8
+CALL sk_wd
+CALL sk_sp
+LI R0,#128
+OUT R0,#P_DA
+IN R6,#P_DD
+OUT R6,#P_DA
+LI R7,#0
+save_data_lp: LT R0,R1,#0
+JZ save_data_done
+OUT R0,#P_DD
+ADDI R1,R1,#1
+ADDI R7,R7,#1
+JMP save_data_lp
+save_data_done: ADD R5,R6,R7
+LI R0,#128
+OUT R0,#P_DA
+OUT R5,#P_DD
+ADDI R0,R3,#5
+OUT R0,#P_DA
+LI R0,#1
+OUT R0,#P_DD
+OUT R6,#P_DD
+OUT R7,#P_DD
+LI R1,#str_saved
+CALL puts
+JMP shell_loop
+cmd_help: LI R1,#str_help
+CALL puts
+JMP shell_loop
+cmd_calc: CALL sk_wd
+CALL sk_sp
+LT R0,R1,#0
+JNZ calc_eval_line
+calc_repl: LI R1,#str_calc_prompt
+CALL puts
+CALL gtln
+CMPI R2,#-1
+JZ shell_loop
+CMPI R2,#0
+JZ calc_repl
+LI R1,#LBUF
+CALL sk_sp
+LT R0,R1,#0
+CALL toupper
+CMPI R0,#'Q'
+JZ shell_loop
+CALL c_ex
+JMP calc_repl
+calc_eval_line: CALL c_ex
+JMP shell_loop
+c_ex: CALL pbtn
+MOV R5,R4
+CALL sk_sp
+LT R6,R1,#0
+JZ c_pr
+ADDI R1,R1,#1
+CALL sk_sp
+CALL pbtn
+CMPI R6,#'+'
+JNZ calc_chk_sub
+ADD R5,R5,R4
+JMP c_pr
+calc_chk_sub: CMPI R6,#'-'
+JNZ calc_chk_mul
+SUB R5,R5,R4
+JMP c_pr
+calc_chk_mul: CMPI R6,#'*'
+JNZ calc_chk_div
+MUL R5,R5,R4
+JMP c_pr
+calc_chk_div: CMPI R6,#'/'
+JNZ calc_chk_mod
+DIV R5,R5,R4
+JMP c_pr
+calc_chk_mod: CMPI R6,#'%'
+JNZ calc_chk_min
+MOD R5,R5,R4
+JMP c_pr
+calc_chk_min: CMPI R6,#'&'
+JNZ calc_chk_max
+TMIN R5,R5,R4
+JMP c_pr
+calc_chk_max: CMPI R6,#'|'
+JNZ calc_chk_con
+TMAX R5,R5,R4
+JMP c_pr
+calc_chk_con: TCON R5,R5,R4
+c_pr: LI R1,#str_eq_pfx
+CALL puts
+MOV R0,R5
+CALL ptern
+LI R1,#str_dec_open
+CALL puts
+MOV R0,R5
+CALL pdec
+LI R1,#str_dec_close
+CALL puts
+RET
+pbtn: LI R4,#0
+pbt_lp: LT R0,R1,#0
+CALL toupper
+CMPI R0,#'1'
+JZ pbt_pos
+CMPI R0,#'0'
+JZ pbt_zero
+CMPI R0,#'T'
+JZ pbt_neg
+RET
+pbt_pos: MULI R4,R4,#3
+ADDI R4,R4,#1
+ADDI R1,R1,#1
+JMP pbt_lp
+pbt_zero: MULI R4,R4,#3
+ADDI R1,R1,#1
+JMP pbt_lp
+pbt_neg: MULI R4,R4,#3
+SUBI R4,R4,#1
+ADDI R1,R1,#1
+JMP pbt_lp
+cmd_draw: LI R4,#121
+LI R5,#121
+LI R6,#13
+LI R2,#-13
+draw_init_lp: CMPI R2,#14
+JNN draw_init_done
+ADDI R3,R2,#13
+MULI R3,R3,#9
+OUT R3,#P_DX
+LI R0,#12
+OUT R0,#P_DY
+OUT R2,#P_PX
+ADDI R2,R2,#1
+JMP draw_init_lp
+draw_init_done: OUT R4,#P_DX
+OUT R5,#P_DY
+OUT R6,#P_PX
+LI R1,#str_draw_msg
+CALL puts
+JMP shell_loop
+cmd_game: IN R2,#P_TM
+LI R3,#27
+MOD R2,R2,R3
+LI R0,#121
+OUT R0,#P_DX
+LI R0,#180
+OUT R0,#P_DY
+LI R0,#9
+OUT R0,#P_PX
+LI R1,#str_game_msg
+CALL puts
+JMP shell_loop
+cmd_asm: CALL a_ent
+LI R1,#EFLG
+LT R0,R1,#0
+JNZ shell_loop
+LI R1,#str_asm_ok
+CALL puts
+LI R1,#OLEN
+LT R0,R1,#0
+CALL pdec
+LI R1,#str_trytes_sfx
+CALL puts
+JMP shell_loop
+a_ent: LI R0,#0
+LI R1,#OLEN
+ST R0,R1,#0
+LI R1,#EFLG
+ST R0,R1,#0
+LI R1,#3264
+a_clr_st: ST R0,R1,#0
+ADDI R1,R1,#5
+CMPI R1,#5699
+JN a_clr_st
+LI R0,#SPOOL
+LI R1,#SPOOL_P
+ST R0,R1,#0
+LI R0,#1
+LI R1,#PASS
+ST R0,R1,#0
+CALL a_rp
+LI R1,#EFLG
+LT R0,R1,#0
+JNZ a_ent_ret
+LI R0,#2
+LI R1,#PASS
+ST R0,R1,#0
+CALL a_rp
+a_ent_ret: RET
+a_rp: LI R6,#SADR
+LI R7,#0
+LI R0,#1
+LI R1,#LNUM
+ST R0,R1,#0
+a_ll: LI R1,#EFLG
+LT R0,R1,#0
+JNZ a_pd
+CALL a_sh
+CALL src_peek
+CMPI R0,#0
+JZ a_pd
+CMPI R0,#10
+JZ a_nl
+CMPI R0,#59
+JZ a_se
+CALL a_rt
+CALL src_peek
+CMPI R0,#58
+JNZ a_nlb
+ADDI R6,R6,#1
+LI R1,#PASS
+LT R0,R1,#0
+CMPI R0,#1
+JNZ a_ll
+MOV R5,R7
+CALL a_sd
+JMP a_ll
+a_nl: ADDI R6,R6,#1
+LI R1,#LNUM
+LT R0,R1,#0
+ADDI R0,R0,#1
+ST R0,R1,#0
+JMP a_ll
+a_se: LI R1,#EFLG
+LT R0,R1,#0
+JNZ a_pd
+a_se_lp: CALL src_peek
+CMPI R0,#0
+JZ a_pd
+CMPI R0,#10
+JZ a_nl
+ADDI R6,R6,#1
+JMP a_se_lp
+a_pd: RET
+a_nlb: CALL a_lm
+CMPI R3,#10
+JNN a_hd
+LI R1,#PASS
+LT R0,R1,#0
+CMPI R0,#1
+JZ a_ip1
+PUSH R2
+PUSH R3
+LI R4,#0
+LI R5,#0
+LI R8,#0
+CMPI R3,#0
+JZ a_ei
+CMPI R3,#1
+JZ asm_fmt_r3
+CMPI R3,#2
+JZ asm_fmt_r2
+CMPI R3,#3
+JZ asm_fmt_cmp
+CMPI R3,#4
+JZ asm_fmt_cmpi
+CMPI R3,#5
+JZ asm_fmt_ri
+CMPI R3,#6
+JZ asm_fmt_rri
+CMPI R3,#7
+JZ asm_fmt_r1s
+CMPI R3,#8
+JZ asm_fmt_r1d
+CALL a_eo
+MOV R8,R0
+JMP a_ei
+asm_fmt_r3: CALL a_pr
+MOV R4,R0
+CALL a_sc
+CALL a_pr
+MOV R5,R0
+CALL a_sc
+CALL a_pr
+CALL asm_bal9
+MOV R8,R0
+JMP a_ei
+asm_fmt_r2: CALL a_pr
+MOV R4,R0
+CALL a_sc
+CALL a_pr
+MOV R5,R0
+JMP a_ei
+asm_fmt_cmp: CALL a_pr
+MOV R5,R0
+CALL a_sc
+CALL a_pr
+CALL asm_bal9
+MOV R8,R0
+JMP a_ei
+asm_fmt_cmpi: CALL a_pr
+MOV R5,R0
+CALL a_sc
+CALL a_eo
+MOV R8,R0
+JMP a_ei
+asm_fmt_ri: CALL a_pr
+MOV R4,R0
+CALL a_sc
+CALL a_eo
+MOV R8,R0
+JMP a_ei
+asm_fmt_rri: CALL a_pr
+MOV R4,R0
+CALL a_sc
+CALL a_pr
+MOV R5,R0
+CALL a_sc
+CALL a_eo
+MOV R8,R0
+JMP a_ei
+asm_fmt_r1s: CALL a_pr
+MOV R5,R0
+JMP a_ei
+asm_fmt_r1d: CALL a_pr
+MOV R4,R0
+a_ei: POP R3
+POP R2
+MOV R0,R4
+CALL asm_bal9
+MULI R0,R0,#9
+MOV R4,R0
+MOV R0,R5
+CALL asm_bal9
+ADD R4,R4,R0
+MULI R2,R2,#81
+ADD R0,R2,R4
+CALL a_em
+MOV R0,R8
+CALL a_em
+JMP a_se
+a_ip1: ADDI R7,R7,#2
+JMP a_se
+a_hd: CMPI R3,#10
+JZ asm_dir_equ
+CMPI R3,#11
+JZ asm_dir_org
+CMPI R3,#12
+JZ asm_dir_tryte
+CMPI R3,#13
+JZ asm_dir_word
+JMP asm_dir_string
+asm_dir_equ: CALL a_sh
+CALL a_rt
+LI R1,#PASS
+LT R0,R1,#0
+CMPI R0,#1
+JNZ ade_p2
+LI R5,#0
+CALL a_sd
+PUSH R2
+CALL a_sc
+CALL a_eo
+POP R2
+ST R0,R2,#3
+JMP a_se
+ade_p2: CALL a_sc
+CALL a_eo
+JMP a_se
+asm_dir_org: CALL a_eo
+MOV R7,R0
+JMP a_se
+asm_dir_tryte: CALL a_eo
+LI R1,#PASS
+LT R2,R1,#0
+CMPI R2,#2
+JNZ asm_dt_p1
+CALL a_em
+JMP asm_dt_next
+asm_dt_p1: ADDI R7,R7,#1
+asm_dt_next: CALL a_sh
+CALL src_peek
+CMPI R0,#44
+JNZ a_se
+ADDI R6,R6,#1
+JMP asm_dir_tryte
+asm_dir_word: CALL a_eo
+LI R1,#PASS
+LT R2,R1,#0
+CMPI R2,#2
+JNZ asm_dw_p1
+LI R1,#OBUF
+ADD R1,R1,R7
+SW R0,R1,#0
+ADDI R7,R7,#3
+CALL a_um
+JMP asm_dw_next
+asm_dw_p1: ADDI R7,R7,#3
+asm_dw_next: CALL a_sh
+CALL src_peek
+CMPI R0,#44
+JNZ a_se
+ADDI R6,R6,#1
+JMP asm_dir_word
+asm_dir_string: CALL a_sh
+CALL src_peek
+CMPI R0,#34
+JNZ a_se
+ADDI R6,R6,#1
+asm_ds_lp: CALL src_peek
+CMPI R0,#0
+JZ asm_ds_done
+CMPI R0,#34
+JZ asm_ds_close
+CMPI R0,#92
+JNZ asm_ds_emit
+ADDI R6,R6,#1
+CALL src_peek
+CMPI R0,#'n'
+JNZ asm_ds_chk_r
+LI R0,#10
+JMP asm_ds_emit
+asm_ds_chk_r: CMPI R0,#'r'
+JNZ asm_ds_chk_t
+LI R0,#13
+JMP asm_ds_emit
+asm_ds_chk_t: CMPI R0,#'t'
+JNZ asm_ds_chk_0
+LI R0,#9
+JMP asm_ds_emit
+asm_ds_chk_0: CMPI R0,#'0'
+JNZ asm_ds_emit
+LI R0,#0
+asm_ds_emit: ADDI R6,R6,#1
+LI R1,#PASS
+LT R2,R1,#0
+CMPI R2,#2
+JNZ asm_ds_p1
+CALL a_em
+JMP asm_ds_lp
+asm_ds_p1: ADDI R7,R7,#1
+JMP asm_ds_lp
+asm_ds_close: ADDI R6,R6,#1
+CMPI R3,#15
+JNZ asm_ds_done
+LI R1,#PASS
+LT R2,R1,#0
+CMPI R2,#2
+JNZ asm_dsz_p1
+LI R0,#0
+CALL a_em
+JMP asm_ds_done
+asm_dsz_p1: ADDI R7,R7,#1
+asm_ds_done: JMP a_se
+a_em: PUSH R1
+LI R1,#EFLG
+LT R1,R1,#0
+JNZ a_em_sk
+LI R1,#OBUF
+ADD R1,R1,R7
+ST R0,R1,#0
+ADDI R7,R7,#1
+CALL a_um
+a_em_sk: POP R1
+RET
+a_um: PUSH R1
+PUSH R2
+LI R1,#OLEN
+LT R2,R1,#0
+CMP R7,R2
+JNP asm_uml_ret
+ST R7,R1,#0
+asm_uml_ret: POP R2
+POP R1
+RET
+asm_bal9: CMPI R0,#4
+JNP asm_bal9_ret
+SUBI R0,R0,#9
+asm_bal9_ret: RET
+src_peek: OUT R6,#P_DA
+IN R0,#P_DD
+RET
+a_sh: CALL src_peek
+CMPI R0,#32
+JZ asm_sh_adv
+CMPI R0,#9
+JZ asm_sh_adv
+CMPI R0,#13
+JZ asm_sh_adv
+RET
+asm_sh_adv: ADDI R6,R6,#1
+JMP a_sh
+a_sc: CALL a_sh
+CALL src_peek
+CMPI R0,#44
+JNZ asm_sc_ret
+ADDI R6,R6,#1
+asm_sc_ret: CALL a_sh
+RET
+a_rt: PUSH R1
+LI R1,#EFLG
+LT R0,R1,#0
+JNZ a_rt_sk
+CALL a_sh
+LI R4,#0
+LI R1,#TBUF
+asm_rt_lp: CALL src_peek
+CMPI R0,#0
+JZ asm_rt_done
+CMPI R0,#32
+JZ asm_rt_done
+CMPI R0,#9
+JZ asm_rt_done
+CMPI R0,#10
+JZ asm_rt_done
+CMPI R0,#13
+JZ asm_rt_done
+CMPI R0,#44
+JZ asm_rt_done
+CMPI R0,#58
+JZ asm_rt_done
+CMPI R0,#59
+JZ asm_rt_done
+CMPI R0,#43
+JZ asm_rt_done
+CMPI R0,#45
+JZ asm_rt_done
+CALL toupper
+ST R0,R1,#0
+ADDI R1,R1,#1
+MULI R4,R4,#41
+ADD R4,R4,R0
+ADDI R6,R6,#1
+JMP asm_rt_lp
+asm_rt_done: LI R0,#0
+ST R0,R1,#0
+a_rt_sk: POP R1
+RET
+a_pr: CALL a_sh
+ADDI R6,R6,#1
+CALL src_peek
+SUBI R0,R0,#48
+ADDI R6,R6,#1
+RET
+a_lm: PUSH R1
+PUSH R5
+LI R1,#mnem_table
+asm_lm_lp: LW R5,R1,#0
+JZ asm_lm_nf
+CMP R4,R5
+JZ asm_lm_found
+ADDI R1,R1,#5
+JMP asm_lm_lp
+asm_lm_found: LT R2,R1,#3
+LT R3,R1,#4
+POP R5
+POP R1
+RET
+asm_lm_nf: LI R2,#0
+LI R3,#0
+POP R5
+POP R1
+RET
+a_sd: CALL a_sl
+JZ a_err_dup
+PUSH R1
+PUSH R3
+PUSH R8
+LI R1,#SPOOL_P
+LT R8,R1,#0
+LI R1,#SYMC
+LT R2,R1,#0
+SW R4,R2,#0
+ST R5,R2,#3
+ST R8,R2,#4
+LI R3,#TBUF
+a_sd_cp: LT R0,R3,#0
+ST R0,R8,#0
+ADDI R3,R3,#1
+ADDI R8,R8,#1
+CMPI R0,#0
+JNZ a_sd_cp
+LI R1,#SPOOL_P
+ST R8,R1,#0
+POP R8
+POP R3
+POP R1
+RET
+a_sl: PUSH R1
+PUSH R2
+PUSH R3
+PUSH R5
+PUSH R8
+LI R2,#487
+MOD R1,R4,R2
+CMPI R1,#0
+JNN a_sl_pos
+ADDI R1,R1,#487
+a_sl_pos: MULI R1,R1,#5
+ADDI R1,R1,#STAB
+asm_sl_lp: LT R8,R1,#4
+CMPI R8,#0
+JZ asm_sl_nf
+LW R5,R1,#0
+CMP R4,R5
+JNZ asm_sl_nx
+LI R3,#TBUF
+asm_sl_cmp: LT R0,R3,#0
+LT R5,R8,#0
+CMP R0,R5
+JNZ asm_sl_nx
+CMPI R0,#0
+JZ asm_sl_found
+ADDI R3,R3,#1
+ADDI R8,R8,#1
+JMP asm_sl_cmp
+asm_sl_nx: ADDI R1,R1,#5
+CMPI R1,#5695
+JN asm_sl_lp
+LI R1,#STAB
+JMP asm_sl_lp
+asm_sl_found: LI R2,#SYMC
+ST R1,R2,#0
+LT R0,R1,#3
+POP R8
+POP R5
+POP R3
+POP R2
+POP R1
+CMP R0,R0
+RET
+asm_sl_nf: LI R2,#SYMC
+ST R1,R2,#0
+LI R0,#0
+POP R8
+POP R5
+POP R3
+POP R2
+POP R1
+CMPI R0,#1
+RET
+a_err_dup: LI R2,#str_err_dup
+LI R0,#1
+JMP a_err_com
+a_err_undef: LI R2,#str_err_und
+LI R0,#2
+a_err_com: PUSH R1
+PUSH R3
+LI R1,#EFLG
+LT R3,R1,#0
+JNZ a_err_done
+ST R0,R1,#0
+LI R1,#str_err_pfx
+CALL puts
+LI R1,#LNUM
+LT R0,R1,#0
+CALL pdec
+MOV R1,R2
+CALL puts
+LI R1,#TBUF
+CALL puts
+CALL put_nl
+LI R1,#OLEN
+LT R3,R1,#0
+LI R0,#0
+ST R0,R1,#0
+LI R1,#OBUF
+a_err_clr: CMPI R3,#0
+JZ a_err_done
+ST R0,R1,#0
+ADDI R1,R1,#1
+SUBI R3,R3,#1
+JMP a_err_clr
+a_err_done: POP R3
+POP R1
+LI R2,#SBUF
+RET
+a_eo: PUSH R2
+PUSH R3
+PUSH R4
+CALL a_sh
+CALL src_peek
+CMPI R0,#35
+JNZ asm_eo_nohash
+ADDI R6,R6,#1
+asm_eo_nohash: CALL a_et
+MOV R2,R0
+CALL src_peek
+CMPI R0,#43
+JZ asm_eo_plus
+CMPI R0,#45
+JZ asm_eo_minus
+MOV R0,R2
+POP R4
+POP R3
+POP R2
+RET
+asm_eo_plus: ADDI R6,R6,#1
+CALL a_et
+ADD R0,R2,R0
+POP R4
+POP R3
+POP R2
+RET
+asm_eo_minus: ADDI R6,R6,#1
+CALL a_et
+SUB R0,R2,R0
+POP R4
+POP R3
+POP R2
+RET
+a_et: CALL a_sh
+CALL src_peek
+CMPI R0,#39
+JZ asm_et_char
+LI R3,#1
+CMPI R0,#43
+JZ asm_et_pos
+CMPI R0,#45
+JNZ asm_et_chk_num
+LI R3,#-1
+asm_et_pos: ADDI R6,R6,#1
+CALL src_peek
+asm_et_chk_num: CMPI R0,#48
+JN asm_et_sym
+CMPI R0,#57
+JP asm_et_sym
+CMPI R0,#48
+JNZ asm_et_dec
+IN R4,#P_DD
+CMPI R4,#'t'
+JZ asm_et_tern
+CMPI R4,#'T'
+JZ asm_et_tern
+asm_et_dec: LI R4,#0
+asm_et_dec_lp: CALL src_peek
+CMPI R0,#48
+JN asm_et_dec_done
+CMPI R0,#57
+JP asm_et_dec_done
+SUBI R0,R0,#48
+MULI R4,R4,#10
+ADD R4,R4,R0
+ADDI R6,R6,#1
+JMP asm_et_dec_lp
+asm_et_dec_done: MUL R0,R4,R3
+RET
+asm_et_tern: ADDI R6,R6,#2
+LI R4,#0
+asm_et_tern_lp: CALL src_peek
+CALL toupper
+CMPI R0,#'1'
+JZ asm_ett_1
+CMPI R0,#'0'
+JZ asm_ett_0
+CMPI R0,#'T'
+JZ asm_ett_t
+MUL R0,R4,R3
+RET
+asm_ett_1: MULI R4,R4,#3
+ADDI R4,R4,#1
+ADDI R6,R6,#1
+JMP asm_et_tern_lp
+asm_ett_0: MULI R4,R4,#3
+ADDI R6,R6,#1
+JMP asm_et_tern_lp
+asm_ett_t: MULI R4,R4,#3
+SUBI R4,R4,#1
+ADDI R6,R6,#1
+JMP asm_et_tern_lp
+asm_et_char: ADDI R6,R6,#1
+CALL src_peek
+CMPI R0,#92
+JNZ asm_etc_norm
+ADDI R6,R6,#1
+CALL src_peek
+CMPI R0,#'n'
+JNZ asm_etc_norm
+LI R0,#10
+asm_etc_norm: ADDI R6,R6,#2
+RET
+asm_et_sym: CALL a_rt
+LI R1,#PASS
+LT R0,R1,#0
+CMPI R0,#1
+JZ asm_et_sym_p1
+CALL a_sl
+JNZ asm_et_und
+MUL R0,R0,R3
+RET
+asm_et_und: PUSH R2
+CALL a_err_undef
+POP R2
+LI R0,#0
+RET
+asm_et_sym_p1: LI R0,#0
+RET
+str_banner: .stringz "TritOS 2.0 [27-Trit Balanced-Ternary System]\nType HELP for commands.\n"
+str_prompt: .stringz "tritos> "
+str_calc_prompt: .stringz "calc> "
+str_files_hdr: .stringz "FILES ON DISK:\n"
+str_trytes_sfx: .stringz " trytes\n"
+str_not_found: .stringz "FILE NOT FOUND\n"
+str_saved: .stringz "SAVED.\n"
+str_unknown: .stringz "UNKNOWN CMD\n"
+str_eq_pfx: .stringz "= "
+str_dec_open: .stringz " ("
+str_dec_close: .stringz ")\n"
+str_draw_msg: .stringz "DRAW: 27-COLOR SPECTRUM + PIXEL PLOTTED AT (121,121)\n"
+str_game_msg: .stringz "TRIT-QUEST: TARGET BALANCED AT 0, SCORE +10T\n"
+str_asm_ok: .stringz "ASM OK: "
+str_err_pfx: .stringz "REJECTS: Line "
+str_err_dup: .stringz ": Duplicate label "
+str_err_und: .stringz ": Undefined label "
+str_help: .stringz "CMDS: LIST, TYPE <F>, SAVE <F> <TXT>, EDIT <F> <TXT>, RUN <P>, CALC, DRAW, GAME, ASM, REBOOT\n"
+str_hello_file: .stringz "HELLO FROM TRITOS 2.0 DISK!"
+fs_img: .tryte #'C',#'A',#'L',#'C',#0,#2,#0,#64
+.tryte #'D',#'R',#'A',#'W',#0,#2,#0,#48
+.tryte #'G',#'A',#'M',#'E',#0,#2,#0,#48
+.tryte #'A',#'S',#'M',#0,#0,#2,#0,#250
+.tryte #'H',#'E',#'L',#'L',#'O',#1,#200,#27
+.tryte #0,#0,#0,#0,#0,#0,#0,#0
+${generateMnemTableAsm()}
+`;
+let CURRENT_SYMBOL_MODE = 'names';
+let TRITOS_SRC = TRITOS_SRC_NAMES;
+function setSymbolMode(mode) {
+if (mode !== 'names' && mode !== 'hashOnly') {
+throw new Error('Invalid symbolMode: ' + mode);
+}
+CURRENT_SYMBOL_MODE = mode;
+TRITOS_SRC = mode === 'names' ? TRITOS_SRC_NAMES : TRITOS_SRC_HASHONLY;
+if (typeof globalThis !== 'undefined' && globalThis.TritonSystem) {
+globalThis.TritonSystem.symbolMode = mode;
+globalThis.TritonSystem.TRITOS_SRC = TRITOS_SRC;
+}
+return TRITOS_SRC;
+}
+function getSymbolMode() {
+return CURRENT_SYMBOL_MODE;
+}
 /* ============================================================================
  * [INLINE 7/7] Workstation Devices, State Exporter & UI Controller
  * ========================================================================== */
@@ -4094,7 +5341,12 @@ const TritonSystem = {
   assemble,
   disassemble,
   disassembleInstruction,
+  symbolMode: 'names',
   TRITOS_SRC,
+  TRITOS_SRC_NAMES,
+  TRITOS_SRC_HASHONLY,
+  setSymbolMode,
+  getSymbolMode,
   tokenHash27,
   TritonJS,
   TritonWASM,
