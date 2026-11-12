@@ -5,18 +5,21 @@
  * Test 1: Extended Trit-Array Oracle (`tests/t3-01-oracle.js`)
  * ConsciousNode SoftWorks
  *
- * Extends the 27-element trit-array oracle to every new T3 instruction:
+ * Extends the 27-element trit-array oracle to every new T3 instruction and full 27-trit address space:
  *   - 27-trit constant builders & upper additions (`LMI`, `LHI`, `ADDM`, `ADDH`)
  *   - Full 27-trit address formation (`LT`/`LDX`, `ST`/`STX`, `LW`/`LWX`, `SW`/`SWX`)
  *   - PC-relative branches & calls (`JMPX`, `JNX`, `JZX`, `JPX`, `JNZX`, `JNPX`, `JNNX`, `CALLX`)
  *   - Register-indirect jumps & calls (`JR`, `JALR`)
  *   - Interruptible & restartable block copy and fill (`BCOPY`, `BFILL`)
- *   - Edge values and faulting cases (out-of-bounds physical RAM, user protection faults, priv faults)
- *   - Positive control: a deliberately perturbed oracle must fail verification.
+ *   - Full 27-trit range large addresses (2^31 ± 1, 2^32 ± 1, 2^32 + small, 2^32 + FB base,
+ *     3^26, -1, -2^31, random 27-trit words) for loads, stores, jumps, BCOPY, and BFILL in
+ *     both Supervisor and User mode: JS === WASM === Oracle on fault, ECAUSE, and full EADDR.
+ *   - Positive controls: (a) a deliberately perturbed oracle fails verification;
+ *     (b) enabling `narrowWasmState: true` (3.0 32-bit address truncation) fails verification.
  */
 
 const { loadHtmlModule, makeRng } = require('./t3-common');
-const { T, htmlPath } = loadHtmlModule('triton3.html');
+const { T } = loadHtmlModule('triton3.html');
 
 // ============================================================================
 // INDEPENDENT PURE TRIT-ARRAY ORACLE (27-element arrays of {-1, 0, +1})
@@ -105,7 +108,6 @@ const PureTritOracle3 = {
     const hiSign = this.sign(prod.slice(27, 54));
     return { res, sf: this.sign(res), cf: hiSign, of: hiSign };
   },
-  // T3 New Constant Builders & Upper Tryte Additions in pure trit-array form
   lmi(rdTrits, imm9Trits) {
     const res = rdTrits.slice(0, 27);
     for (let i = 0; i < 9; i++) res[9 + i] = imm9Trits[i];
@@ -126,13 +128,11 @@ const PureTritOracle3 = {
     for (let i = 0; i < 9; i++) shifted[18 + i] = imm9Trits[i];
     return this.add(rs1Trits, shifted, 0);
   },
-  // 27-trit Effective Address Formation: base (27 trits) + sign-extended imm9 (9 trits)
   effectiveAddr(baseTrits, imm9Trits) {
     const ext = new Array(27).fill(0);
     for (let i = 0; i < 9; i++) ext[i] = imm9Trits[i];
     return this.add(baseTrits, ext, 0).res;
   },
-  // PC-relative branch evaluation
   branchRel(pcTrits, imm9Trits, sf, condKind) {
     let take = false;
     switch (condKind) {
@@ -155,7 +155,6 @@ const PureTritOracle3 = {
       taken: true
     };
   },
-  // Single step of BCOPY / BFILL
   blockStep(dstTrits, srcOrValTrits, cntTrits, isFill) {
     const cntVal = this.tritsToBigInt(cntTrits);
     if (cntVal <= 0n) {
@@ -181,6 +180,47 @@ const PureTritOracle3 = {
       cf: 0,
       of: 0
     };
+  },
+  // Pure trit-array oracle evaluation of single-tryte and 3-tryte memory access / fetch faults
+  evalAccess(addrTrits, spanTrytes, priv, protEn, ubaseTrits, ulimitTrits, ramSize, isWrite = false) {
+    const addr = this.tritsToBigInt(addrTrits);
+    const ubase = this.tritsToBigInt(ubaseTrits);
+    const ulimit = this.tritsToBigInt(ulimitTrits);
+    const ram = BigInt(ramSize);
+    const fbBase = BigInt(T.T3_FB_BASE);
+    const fbEnd = BigInt(T.T3_FB_BASE + T.T3_FB_SIZE);
+    const span = BigInt(spanTrytes);
+
+    if (isWrite && span === 3n) {
+      if (priv === 1 && protEn === 1) {
+        if (addr < ubase || addr + 2n >= ulimit) {
+          const bad = addr < ubase ? addr : (addr > ulimit ? addr : ulimit);
+          return { fault: true, ecause: 3, eaddr: Number(bad) };
+        }
+      }
+      if (!(addr >= fbBase && addr + 2n < fbEnd)) {
+        if (addr < 0n || addr + 2n >= ram) {
+          const bad = addr < 0n ? addr : (addr > ram ? addr : ram);
+          return { fault: true, ecause: 4, eaddr: Number(bad) };
+        }
+      }
+      return { fault: false, ecause: 0, eaddr: 0 };
+    }
+
+    for (let k = 0n; k < span; k++) {
+      const cur = addr + k;
+      if (priv === 1 && protEn === 1) {
+        if (cur < ubase || cur >= ulimit) {
+          return { fault: true, ecause: 3, eaddr: Number(cur) };
+        }
+      }
+      const inFb = (cur >= fbBase && cur < fbEnd);
+      const inRam = (cur >= 0n && cur < ram);
+      if (!inFb && !inRam) {
+        return { fault: true, ecause: 4, eaddr: Number(cur) };
+      }
+    }
+    return { fault: false, ecause: 0, eaddr: 0 };
   }
 };
 
@@ -239,10 +279,10 @@ for (let i = 0; i < 25000; i++) {
   totalChecks++;
 }
 
-// 2. Test 27-trit Address Formation & Loads/Stores (LDX, STX, LWX, SWX) across full physical RAM & faulting cases
+// 2. Test 27-trit Address Formation & Loads/Stores (LDX, STX, LWX, SWX) across physical RAM & faulting cases
 for (let i = 0; i < 5000; i++) {
   const baseAddr = (i % 10 === 0)
-    ? rng.int(T.T3_DEFAULT_RAM_SIZE - 5, T.T3_DEFAULT_RAM_SIZE + 500) // Faulting bad address cases!
+    ? rng.int(T.T3_DEFAULT_RAM_SIZE - 5, T.T3_DEFAULT_RAM_SIZE + 500)
     : (i % 10 === 1 ? rng.int(-500, -1) : rng.int(1000, T.T3_DEFAULT_RAM_SIZE - 20000));
   const imm9 = rng.int(-500, 500);
   const baseTrits = PureTritOracle3.intToTrits(baseAddr, 27);
@@ -251,7 +291,6 @@ for (let i = 0; i < 5000; i++) {
   const effAddr = Number(PureTritOracle3.tritsToBigInt(effTrits));
 
   const isFaultExpected = (effAddr < 0 || effAddr + 2 >= T.T3_DEFAULT_RAM_SIZE);
-  // Set up vector 4 (BAD_ADDR) at VBR=100 -> handler at 500
   jsVm.reset(true); wasmVm.reset(true);
   jsVm.vbr = 100; wasmVm.vbr = 100;
   jsVm.setMem(100 + 4 * 3, 500); wasmVm.setMem(100 + 4 * 3, 500);
@@ -260,7 +299,6 @@ for (let i = 0; i < 5000; i++) {
   const [v0, v1, v2] = T.tritsToWord(testVal);
   const [b0, b1, b2] = T.tritsToWord(baseTrits);
 
-  // SWX R2, R1, imm9 followed by LWX R3, R1, imm9
   const [sw0, sw1] = T.encodeInstruction(40, 2, 1, imm9);
   const [lw0, lw1] = T.encodeInstruction(39, 3, 1, imm9);
   jsVm.setMem(0, sw0); jsVm.setMem(1, sw1);
@@ -366,7 +404,7 @@ for (let i = 0; i < 500; i++) {
 
     const expD = Number(PureTritOracle3.tritsToBigInt(dTrits));
     const expS = Number(PureTritOracle3.tritsToBigInt(sTrits));
-    const expC = Number(PureTritOracle3.tritsToBigInt(cTrits));
+    const expC = Number(PureTritOracle3.tritsToBigInt(sTrits === exp.src ? cTrits : cTrits));
     if (jsVm.getWordNum(1) !== expD || wasmVm.getWordNum(1) !== expD ||
         jsVm.getWordNum(2) !== expS || wasmVm.getWordNum(2) !== expS ||
         jsVm.getWordNum(3) !== expC || wasmVm.getWordNum(3) !== expC ||
@@ -387,14 +425,254 @@ for (let i = 0; i < 500; i++) {
   }
 }
 
-// 5. Positive Control: verify that perturbing a single trit in the oracle is immediately caught
+// 5. Full 27-Trit Large-Address Oracle Suite (Loads, Stores, Jumps, BCOPY, BFILL in Supervisor & User Mode)
+function runLargeAddrOracleSuite(targetWasmVm) {
+  let checks = 0;
+  const TWO31 = 2147483648;
+  const TWO32 = 4294967296;
+  const THREE25 = 847288609443;
+  const THREE26 = 2541865828329;
+  const MAX27 = 3812798742493;
+
+  const probeAddrs = [
+    TWO31 - 1,
+    TWO31,
+    TWO31 + 1,
+    TWO32 - 1,
+    TWO32,
+    TWO32 + 1,
+    TWO32 + 400,                 // aliases kernel sentinel 400 if truncated to 32 bits
+    TWO32 + 2000,                // aliases supervisor RAM 2000 if truncated to 32 bits
+    TWO32 + 5500,                // aliases user window [5000, 6000) if truncated to 32 bits
+    TWO32 + T.T3_FB_BASE,        // 2^32 + framebuffer base
+    TWO32 + T.T3_FB_BASE + 1000,
+    THREE25,
+    THREE26,
+    -THREE26,
+    MAX27 - 10,
+    -MAX27 + 10,
+    -1,
+    -TWO31,
+    -TWO31 - 1,
+    -TWO31 + 1,
+    -TWO32,
+    -TWO32 + 5500,
+    0,
+    400,
+    4999,
+    5000,
+    5500,
+    5998,
+    5999,
+    6000,
+    T.T3_DEFAULT_RAM_SIZE - 3,
+    T.T3_DEFAULT_RAM_SIZE - 1,
+    T.T3_DEFAULT_RAM_SIZE,
+    T.T3_DEFAULT_RAM_SIZE + 1000,
+    T.T3_FB_BASE - 1,
+    T.T3_FB_BASE,
+    T.T3_FB_BASE + 100,
+    T.T3_FB_BASE + T.T3_FB_SIZE - 1,
+    T.T3_FB_BASE + T.T3_FB_SIZE
+  ];
+
+  // Add 120 random 27-trit addresses spread across [-MAX27, +MAX27]
+  const localRng = makeRng(0x3101BEEF);
+  for (let i = 0; i < 120; i++) {
+    const rt = localRng.wordTrits();
+    const bigA = Number(PureTritOracle3.tritsToBigInt(rt));
+    if (Math.abs(bigA) < MAX27 - 1000) probeAddrs.push(bigA);
+  }
+
+  const ubase = 5000;
+  const ulimit = 6000;
+  const ubaseTrits = PureTritOracle3.intToTrits(ubase, 27);
+  const ulimitTrits = PureTritOracle3.intToTrits(ulimit, 27);
+
+  jsVm.reset(true);
+  targetWasmVm.reset(true);
+  // Set up trap vectors 3 (PROT_VIOL) and 4 (BAD_ADDR) at VBR=100 -> handler at PC=800
+  // At PC=800: MFSPR R7, #12 (ECAUSE); MFSPR R8, #13 (EADDR)
+  jsVm.vbr = 100; targetWasmVm.vbr = 100;
+  jsVm.ubase = ubase; targetWasmVm.ubase = ubase;
+  jsVm.ulimit = ulimit; targetWasmVm.ulimit = ulimit;
+  jsVm.protEn = 1; targetWasmVm.protEn = 1;
+  jsVm.ksp = 20000; targetWasmVm.ksp = 20000;
+  for (const vec of [3, 4]) {
+    jsVm.setMem(100 + vec * 3, 800); jsVm.setMem(100 + vec * 3 + 1, 0); jsVm.setMem(100 + vec * 3 + 2, 0);
+    targetWasmVm.setMem(100 + vec * 3, 800); targetWasmVm.setMem(100 + vec * 3 + 1, 0); targetWasmVm.setMem(100 + vec * 3 + 2, 0);
+  }
+  const [mfCause0, mfCause1] = T.encodeInstruction(54, 7, 0, 12); // MFSPR R7, #12
+  const [mfAddr0, mfAddr1] = T.encodeInstruction(54, 8, 0, 13);   // MFSPR R8, #13
+  jsVm.setMem(800, mfCause0); jsVm.setMem(801, mfCause1);
+  jsVm.setMem(802, mfAddr0);  jsVm.setMem(803, mfAddr1);
+  targetWasmVm.setMem(800, mfCause0); targetWasmVm.setMem(801, mfCause1);
+  targetWasmVm.setMem(802, mfAddr0);  targetWasmVm.setMem(803, mfAddr1);
+
+  // Place a known sentinel at Mem[2000] = 31337 and Mem[400] = 7777
+  jsVm.setMem(2000, 7654); targetWasmVm.setMem(2000, 7654);
+  jsVm.setMem(400, 7777);   targetWasmVm.setMem(400, 7777);
+
+  for (const priv of [0, 1]) {
+    const execPc = priv === 1 ? 5100 : 300;
+    for (const targetAddr of probeAddrs) {
+      const imm9 = (targetAddr >= -MAX27 + 500 && targetAddr <= MAX27 - 500) ? ((checks % 5) - 2) * 7 : 0;
+      const baseAddr = targetAddr - imm9;
+      const baseTrits = PureTritOracle3.intToTrits(baseAddr, 27);
+      const immTrits = PureTritOracle3.intToTrits(imm9, 9);
+      const effTrits = PureTritOracle3.effectiveAddr(baseTrits, immTrits);
+      const [b0, b1, b2] = T.tritsToWord(baseTrits);
+
+      // (a) Single-tryte Load (LDX / LT) & Store (STX / ST) and Word Load (LWX) & Store (SWX)
+      const memOps = [
+        { name: 'LDX', op: 37, span: 1, isWrite: false },
+        { name: 'STX', op: 38, span: 1, isWrite: true  },
+        { name: 'LWX', op: 39, span: 3, isWrite: false },
+        { name: 'SWX', op: 40, span: 3, isWrite: true  }
+      ];
+      for (const mop of memOps) {
+        if (mop.isWrite && targetAddr >= 0 && targetAddr < 2100) continue; // don't overwrite vector table/handler
+        if (mop.isWrite && targetAddr >= 5095 && targetAddr <= 5110) continue; // don't overwrite execPc
+
+        const oracle = PureTritOracle3.evalAccess(effTrits, mop.span, priv, 1, ubaseTrits, ulimitTrits, T.T3_DEFAULT_RAM_SIZE, mop.isWrite);
+        const [ins0, ins1] = T.encodeInstruction(mop.op, 2, 1, imm9);
+
+        for (const vm of [jsVm, targetWasmVm]) {
+          vm.priv = priv; vm.pc = execPc; vm.sp = priv === 1 ? 5800 : 50000;
+          vm.ecause = 0; vm.eaddr = 0; vm.epc = 0; vm.halted = 0;
+          vm.setMem(execPc, ins0); vm.setMem(execPc + 1, ins1);
+          vm.setWord(1, b0, b1, b2);
+          vm.setWord(2, 123, -45, 6);
+          vm. setWord(7, 0, 0, 0); vm.setWord(8, 0, 0, 0);
+          vm.step();
+          if (vm.pc === 800) { vm.step(); vm.step(); }
+        }
+
+        if (oracle.fault) {
+          if (jsVm.pc !== 804 || targetWasmVm.pc !== 804 ||
+              jsVm.ecause !== oracle.ecause || targetWasmVm.ecause !== oracle.ecause ||
+              jsVm.eaddr !== oracle.eaddr || targetWasmVm.eaddr !== oracle.eaddr ||
+              jsVm.getWordNum(7) !== oracle.ecause || targetWasmVm.getWordNum(7) !== oracle.ecause ||
+              jsVm.getWordNum(8) !== oracle.eaddr || targetWasmVm.getWordNum(8) !== oracle.eaddr ||
+              jsVm.epc !== execPc || targetWasmVm.epc !== execPc) {
+            throw new Error(`[Test 1] Large-address ${mop.name} fault mismatch at addr=${targetAddr} (priv=${priv}): oracle=${JSON.stringify(oracle)} js={pc:${jsVm.pc},cause:${jsVm.ecause},eaddr:${jsVm.eaddr}} wasm={pc:${targetWasmVm.pc},cause:${targetWasmVm.ecause},eaddr:${targetWasmVm.eaddr},r8:${targetWasmVm.getWordNum(8)}}`);
+          }
+        } else {
+          if (jsVm.pc !== execPc + 2 || targetWasmVm.pc !== execPc + 2 ||
+              jsVm.getWordNum(2) !== targetWasmVm.getWordNum(2)) {
+            throw new Error(`[Test 1] Large-address ${mop.name} non-fault mismatch at addr=${targetAddr} (priv=${priv})`);
+          }
+        }
+        checks++;
+      }
+
+      // (b) Jump (JR / JALR) to full 27-trit targetAddr + instruction fetch at targetAddr
+      {
+        const isJalr = (checks & 1) === 1;
+        const [j0, j1] = isJalr
+          ? T.encodeInstruction(49, 4, 1, imm9) // JALR R4, R1, imm9
+          : T.encodeInstruction(28, 0, 1, 0);   // JR R1
+        const jumpTargetTrits = isJalr ? effTrits : baseTrits;
+        const jumpTargetNum = Number(PureTritOracle3.tritsToBigInt(jumpTargetTrits));
+        const fetchOracle = PureTritOracle3.evalAccess(jumpTargetTrits, 2, priv, 1, ubaseTrits, ulimitTrits, T.T3_DEFAULT_RAM_SIZE);
+
+        for (const vm of [jsVm, targetWasmVm]) {
+          vm.priv = priv; vm.pc = execPc; vm.sp = priv === 1 ? 5800 : 50000;
+          vm.ecause = 0; vm.eaddr = 0; vm.epc = 0; vm.halted = 0;
+          vm.setMem(execPc, j0); vm.setMem(execPc + 1, j1);
+          vm.setWord(1, b0, b1, b2);
+          vm.step(); // executes JR / JALR -> sets PC = jumpTargetNum
+        }
+        if (jsVm.pc !== jumpTargetNum || targetWasmVm.pc !== jumpTargetNum) {
+          throw new Error(`[Test 1] Large-address jump PC mismatch: expected ${jumpTargetNum}, got js=${jsVm.pc} wasm=${targetWasmVm.pc}`);
+        }
+        if (fetchOracle.fault) {
+          jsVm.step(); targetWasmVm.step(); // instruction fetch at jumpTargetNum must fault!
+          if (jsVm.pc !== 800 || targetWasmVm.pc !== 800 ||
+              jsVm.ecause !== fetchOracle.ecause || targetWasmVm.ecause !== fetchOracle.ecause ||
+              jsVm.eaddr !== fetchOracle.eaddr || targetWasmVm.eaddr !== fetchOracle.eaddr ||
+              jsVm.epc !== jumpTargetNum || targetWasmVm.epc !== jumpTargetNum) {
+            throw new Error(`[Test 1] Large-address fetch after jump mismatch at ${jumpTargetNum} (priv=${priv}): oracle=${JSON.stringify(fetchOracle)} jsEaddr=${jsVm.eaddr} wasmEaddr=${targetWasmVm.eaddr}`);
+          }
+        }
+        checks++;
+      }
+
+      // (c) BCOPY and BFILL at targetAddr
+      if (!(targetAddr >= 0 && targetAddr < 2100) && !(targetAddr >= 5095 && targetAddr <= 5110)) {
+        const effAddrTrits = PureTritOracle3.intToTrits(targetAddr, 27);
+        const [t0, t1, t2] = T.tritsToWord(effAddrTrits);
+        const oracle1 = PureTritOracle3.evalAccess(effAddrTrits, 1, priv, 1, ubaseTrits, ulimitTrits, T.T3_DEFAULT_RAM_SIZE);
+
+        // BFILL R1(dst=targetAddr), R2(val=77), R3(cnt=2)
+        const [bf0, bf1] = T.encodeInstruction(51, 1, 2, T.balRem(3, 9, 4));
+        for (const vm of [jsVm, targetWasmVm]) {
+          vm.priv = priv; vm.pc = execPc; vm.ecause = 0; vm.eaddr = 0; vm.halted = 0;
+          vm.setMem(execPc, bf0); vm.setMem(execPc + 1, bf1);
+          vm.setWord(1, t0, t1, t2);
+          vm.setWord(2, 77, 0, 0);
+          vm.setWord(3, 2, 0, 0);
+          vm.step();
+        }
+        if (oracle1.fault) {
+          if (jsVm.pc !== 800 || targetWasmVm.pc !== 800 ||
+              jsVm.ecause !== oracle1.ecause || targetWasmVm.ecause !== oracle1.ecause ||
+              jsVm.eaddr !== oracle1.eaddr || targetWasmVm.eaddr !== oracle1.eaddr) {
+            throw new Error(`[Test 1] Large-address BFILL fault mismatch at ${targetAddr}`);
+          }
+        } else {
+          if (jsVm.getWordNum(1) !== targetAddr + 1 || targetWasmVm.getWordNum(1) !== targetAddr + 1 ||
+              jsVm.getWordNum(3) !== 1 || targetWasmVm.getWordNum(3) !== 1) {
+            throw new Error(`[Test 1] Large-address BFILL step mismatch at ${targetAddr}`);
+          }
+        }
+
+        // BCOPY R1(dst=5500), R2(src=targetAddr), R3(cnt=2)
+        const [bc0, bc1] = T.encodeInstruction(50, 1, 2, T.balRem(3, 9, 4));
+        for (const vm of [jsVm, targetWasmVm]) {
+          vm.priv = priv; vm.pc = execPc; vm.ecause = 0; vm.eaddr = 0; vm.halted = 0;
+          vm.setMem(execPc, bc0); vm.setMem(execPc + 1, bc1);
+          vm.setWord(1, 5500, 0, 0);
+          vm.setWord(2, t0, t1, t2);
+          vm.setWord(3, 2, 0, 0);
+          vm.step();
+        }
+        if (oracle1.fault) {
+          if (jsVm.pc !== 800 || targetWasmVm.pc !== 800 ||
+              jsVm.ecause !== oracle1.ecause || targetWasmVm.ecause !== oracle1.ecause ||
+              jsVm.eaddr !== oracle1.eaddr || targetWasmVm.eaddr !== oracle1.eaddr) {
+            throw new Error(`[Test 1] Large-address BCOPY fault mismatch at ${targetAddr}`);
+          }
+        } else {
+          if (jsVm.getWordNum(2) !== targetAddr + 1 || targetWasmVm.getWordNum(2) !== targetAddr + 1 ||
+              jsVm.getWordNum(3) !== 1 || targetWasmVm.getWordNum(3) !== 1) {
+            throw new Error(`[Test 1] Large-address BCOPY step mismatch at ${targetAddr}`);
+          }
+        }
+        checks += 2;
+      }
+    }
+  }
+
+  // Verify kernel sentinels at Mem[400] and Mem[2000] were never corrupted
+  if (jsVm.getMem(400) !== 7777 || targetWasmVm.getMem(400) !== 7777 ||
+      jsVm.getMem(2000) !== 7654 || targetWasmVm.getMem(2000) !== 7654) {
+    throw new Error('[Test 1] Sentinel memory corrupted during large-address oracle checks');
+  }
+  return checks;
+}
+
+totalChecks += runLargeAddrOracleSuite(wasmVm);
+
+// 6. Positive Controls:
+// (a) Verify that perturbing a single trit in the oracle is immediately caught
 let positiveControlCaught = false;
 {
   const ta = PureTritOracle3.intToTrits(1234567, 27);
   const immTrits = PureTritOracle3.intToTrits(42, 9);
   const good = PureTritOracle3.addm(ta, immTrits);
   const badRes = good.res.slice();
-  badRes[9] = badRes[9] === 1 ? -1 : 1; // flip middle tryte LSB trit
+  badRes[9] = badRes[9] === 1 ? -1 : 1;
   const [bw0, bw1, bw2] = T.tritsToWord(badRes);
 
   const [a0, a1, a2] = T.tritsToWord(ta);
@@ -411,4 +689,18 @@ if (!positiveControlCaught) {
   throw new Error('[Test 1] Positive control failed to detect perturbed oracle!');
 }
 
-console.log(`[PASS] t3-01-oracle: ${totalChecks.toLocaleString()} T3 oracle checks (arithmetic, 27-trit addr, PC-rel branches, restartable BCOPY/BFILL, faults + positive control) in ${Date.now() - t0} ms`);
+// (b) Positive Control (3.1): `narrowWasmState: true` reintroduces 3.0 32-bit address truncation and MUST fail Test 1
+let narrowControlCaught = false;
+{
+  const narrowWasm = T.TritonWASM.createSync({ archMode: 'T3', narrowWasmState: true });
+  try {
+    runLargeAddrOracleSuite(narrowWasm);
+  } catch (_) {
+    narrowControlCaught = true;
+  }
+}
+if (!narrowControlCaught) {
+  throw new Error('[Test 1] Positive control failed: narrowWasmState: true did not fail large-address oracle checks!');
+}
+
+console.log(`[PASS] t3-01-oracle: ${totalChecks.toLocaleString()} T3 oracle checks (arithmetic, full 27-trit large addrs in Sup/User mode, PC-rel branches, BCOPY/BFILL, faults + narrowWasmState positive control) in ${Date.now() - t0} ms`);

@@ -1,10 +1,10 @@
 # Triton 3.0 Instruction Set Architecture (`ISA-3.md`)
 
-**ConsciousNode SoftWorks · Normative Architecture Specification (Version 3.0)**
+**ConsciousNode SoftWorks · Normative Architecture Specification (Version 3.1)**
 
 *All numerical figures, opcode encodings, memory ranges, port definitions, and vector offsets in this specification are generated programmatically by `tests/t3-generate-docs.js` directly from `triton3.html`.*
 
-Triton 3.0 is a full balanced-ternary computer architecture with a **27-trit ($3^{27} = 7,625,597,484,987$-tryte) address space**, supervisor/user privilege separation, base-and-limit memory protection, prioritized hardware interrupts and software traps, interruptible block memory instructions, memory-mapped **$729 \times 486$ ($729$-color) graphics**, DMA block storage ($3^{13} = 1,594,323$ trytes), StudioNet networking, and hardware backward-compatibility mode (**T2 mode**) that runs every Triton 2.x program unchanged.
+Triton 3.0 (patched in 3.1) is a full balanced-ternary computer architecture with a **27-trit ($3^{27} = 7,625,597,484,987$-tryte) address space**, supervisor/user privilege separation, base-and-limit memory protection, prioritized hardware interrupts and software traps, interruptible block memory instructions, memory-mapped **$729 \times 486$ ($729$-color) graphics**, DMA block storage ($3^{13} = 1,594,323$ trytes), StudioNet networking, and hardware backward-compatibility mode (**T2 mode**) that runs every Triton 2.x program unchanged. Both `TritonJS` and `TritonWASM` hold every 27-trit architected value (`PC`, `SP`, `KSP`, `EPC`, `ESP`, `EADDR`, `VBR`, `UBASE`, `ULIMIT`, `ESR`, `ECAUSE`, disk `LBA`/DMA address/count, timer period/count, and the 64-bit virtual-clock step counter) at full width without 32-bit truncation.
 
 ## 1. Fundamental Data Types & Dual Architectural Modes
 
@@ -25,7 +25,7 @@ Triton 3.0 is a full balanced-ternary computer architecture with a **27-trit ($3
 1. **T3 Mode (`SPR_MODE = 1`, Default on Reset)**:
    - `PC`, `SP`, and all effective memory addresses are full **27-trit words** ($W_0 + 19,683 W_1 + 387,420,489 W_2$).
    - Physical RAM defaults to **$3^{14} = 4,782,969$ trytes** and is configurable up to **$3^{15} = 14,348,907$ trytes**.
-   - Memory accesses never wrap silently modulo $3^9$: any access outside physical RAM (and outside the MMIO framebuffer at `15,000,000 .. 15,354,293`) raises a **Bad Address fault (Vector 4)**.
+   - Memory accesses never wrap silently modulo $3^9$ or $2^{32}$: any access outside physical RAM (and outside the MMIO framebuffer at `15,000,000 .. 15,354,293`) raises a **Bad Address fault (Vector 4)** with the full 27-trit address in `EADDR`.
    - `CALL` and `CALLX` push the full 3-tryte (27-trit) return `PC` onto the stack (`SP <- SP - 3`), and `RET` pops all 3 trytes (`SP <- SP + 3`).
 2. **T2 Compatibility Mode (`SPR_MODE = 0`)**:
    - Behaves identically to Triton 2.1 (`ISA.md`). `PC`, `SP`, and effective addresses are 9-trit trytes that wrap modulo $3^9 = 19,683$ via $\text{phys}(A) = ((A \bmod 19683) + 19683) \bmod 19683$.
@@ -71,7 +71,7 @@ Reading (`MFSPR`) or writing (`MTSPR`) any SPR requires **Supervisor mode (`PRIV
 | `0 .. 4,782,968` ($3^{14}$, default) | `4,782,969` | **Default Physical RAM** | Full read/write in Supervisor mode; restricted to `[UBASE, ULIMIT)` in User mode when `PROT_EN = 1` |
 | `0 .. 14,348,906` ($3^{15}$, max) | `14,348,907` | **Max Configurable Physical RAM** | Configurable via `new TritonJS({ ramSize })` / `TritonWASM.createSync({ ramSize })` |
 | `15,000,000 .. 15,354,293` | `354,294` ($729 \times 486$) | **MMIO Display Framebuffer** | 1 tryte per pixel ($729$ colors: low 6 trits = 2 trits R, 2 trits G, 2 trits B; high 3 trits = 0) |
-| All other addresses | — | **Unmapped Address Space** | Raises **Bad Address fault (Vector 4, `BAD_ADDR`)** with `EADDR = addr`; never wraps silently |
+| All other addresses | — | **Unmapped Address Space** | Raises **Bad Address fault (Vector 4, `BAD_ADDR`)** with full 27-trit `EADDR = addr`; never wraps silently |
 
 ## 3. New Triton 3.0 Instructions (M2 & M3)
 

@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Test 9: Determinism and State Export in Both T2 and T3 Modes (`tests/t3-09-state.js`)
+ * Test 9: Determinism, State Export, and Unlimited Console Length (`tests/t3-09-state.js`)
  * ConsciousNode SoftWorks
  *
  * Verifies:
@@ -11,8 +11,11 @@
  *   - A state exported mid-run (`exportSelfContainedHTML` / `extractSnapshotFromHTML` /
  *     `restoreSnapshot`) and resumed finishes with the exact same architectural
  *     state hash and console transcript on both JS and WASM as a continuous run.
- *   - Positive control: modifying a saved register or memory word in a mid-run
- *     snapshot produces a different final state hash.
+ *   - Console length (3.1 Test 4): a TritOS 3 session of >= 1,000 commands producing
+ *     >= 50,000 console characters finishes with `wasm.getConsoleOut() === js.consoleOut`.
+ *   - Positive controls:
+ *     (a) modifying a saved register or memory word in a mid-run snapshot produces a different final state hash;
+ *     (b) enabling `narrowWasmState: true` reintroduces the 3.0 trace-derived console cap and fails Test 4.
  */
 
 const { loadHtmlModule } = require('./t3-common');
@@ -63,8 +66,10 @@ function verifyModeExportRoundTrip(archModeStr, osSrc, commands, midSteps) {
 
   const finalHashJs = T.computeStateHash(restoredJs);
   const finalHashWasm = T.computeStateHash(restoredWasm);
-  if (finalHashJs !== hashA || finalHashWasm !== hashA || restoredJs.consoleOut !== runA.consoleOut) {
-    throw new Error(`[Test 9 - ${archModeStr}] Resumed snapshot hash mismatch: continuous=0x${hashA.toString(16)} js=0x${finalHashJs.toString(16)} wasm=0x${finalHashWasm.toString(16)}`);
+  if (finalHashJs !== hashA || finalHashWasm !== hashA ||
+      restoredJs.consoleOut !== runA.consoleOut ||
+      restoredWasm.getConsoleOut() !== runA.consoleOut) {
+    throw new Error(`[Test 9 - ${archModeStr}] Resumed snapshot hash/console mismatch: continuous=0x${hashA.toString(16)} js=0x${finalHashJs.toString(16)} wasm=0x${finalHashWasm.toString(16)}`);
   }
 
   // 3. Positive Control: perturbing SP in the snapshot causes final state hash to diverge
@@ -95,4 +100,56 @@ const hashT3 = verifyModeExportRoundTrip(
   25000
 );
 
-console.log(`[PASS] t3-09-state: Determinism & mid-run state export/resume verified in T2 (0x${hashT2.toString(16)}) and T3 (0x${hashT3.toString(16)}) across JS & WASM (+ positive controls) in ${Date.now() - t0} ms`);
+// 4. Console Length Verification (3.1 Test 4): >= 1,000 TritOS 3 commands producing >= 50,000 console chars
+const builtOS3 = T.assemble(T.TRITOS3_SRC, { mode: 'T3' });
+const numCommands = 1005;
+const cmdLines = [];
+for (let i = 0; i < numCommands; i++) {
+  cmdLines.push(i < 100 ? 'c 111111111*111111111' : 'c 111111*111111');
+}
+cmdLines.push('quit\n');
+const longSessionInput = cmdLines.join('\n');
+
+const longJs = new T.TritonJS({ archMode: 'T3' });
+const longWasm = T.TritonWASM.createSync({ archMode: 'T3' });
+longJs.loadProgram(builtOS3.trytes, 0);
+longWasm.loadProgram(builtOS3.trytes, 0);
+longJs.pushInputString(longSessionInput);
+longWasm.pushInputString(longSessionInput);
+
+longJs.run(35000000);
+longWasm.run(35000000);
+
+const jsConsole = longJs.consoleOut;
+const wasmConsole = longWasm.getConsoleOut();
+
+if (!longJs.halted || !longWasm.halted) {
+  throw new Error(`[Test 9] Long console session did not halt: jsHalted=${longJs.halted} wasmHalted=${longWasm.halted}`);
+}
+if (jsConsole.length < 50000) {
+  throw new Error(`[Test 9] Expected >= 50,000 console chars from ${numCommands} commands, got ${jsConsole.length}`);
+}
+if (wasmConsole !== jsConsole) {
+  throw new Error(`[Test 9] Console length mismatch: js=${jsConsole.length} chars vs wasm=${wasmConsole.length} chars`);
+}
+if (T.computeStateHash(longJs) !== T.computeStateHash(longWasm)) {
+  throw new Error('[Test 9] State hash mismatch after 1,005-command TritOS 3 session');
+}
+
+// 5. Positive Control (3.1 Test 5): with `narrowWasmState: true`, trace-derived console caps at 10,900 I/O events and MUST fail
+let narrowConsoleControlCaught = false;
+{
+  const narrowWasm = T.TritonWASM.createSync({ archMode: 'T3', narrowWasmState: true });
+  narrowWasm.loadProgram(builtOS3.trytes, 0);
+  narrowWasm.pushInputString(longSessionInput);
+  narrowWasm.run(35000000);
+  const cappedOut = narrowWasm.getConsoleOut();
+  if (cappedOut !== jsConsole && cappedOut.length < jsConsole.length) {
+    narrowConsoleControlCaught = true;
+  }
+}
+if (!narrowConsoleControlCaught) {
+  throw new Error('[Test 9] Positive control failed: narrowWasmState: true did not fail 50,000-char console check!');
+}
+
+console.log(`[PASS] t3-09-state: Determinism, mid-run state export/resume in T2 (0x${hashT2.toString(16)}) & T3 (0x${hashT3.toString(16)}), and ${numCommands}-cmd / ${jsConsole.length.toLocaleString()}-char console match (+ narrowWasmState positive control) in ${Date.now() - t0} ms`);

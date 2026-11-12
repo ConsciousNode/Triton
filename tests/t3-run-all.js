@@ -2,14 +2,15 @@
 'use strict';
 
 /**
- * Triton 3.0 Master Test Runner (`tests/t3-run-all.js`)
+ * Triton 3.1 Master Test Runner (`tests/t3-run-all.js`)
  * ConsciousNode SoftWorks
  *
- * Runs all 11 `tests/t3-*.js` suites sequentially and prints the overall summary.
+ * Runs all 11 `tests/t3-*.js` suites sequentially and reports passed / failed / skipped
+ * counts. A skipped suite (printing `SKIPPED: <reason>`) is never reported as passed.
  */
 
 const path = require('path');
-const { execFileSync } = require('child_process');
+const { spawnSync } = require('child_process');
 
 const SUITES = [
   't3-01-oracle.js',
@@ -26,16 +27,35 @@ const SUITES = [
 ];
 
 console.log('====================================================================');
-console.log('TRITON 3.0 FULL VERIFICATION SUITE (node tests/t3-run-all.js)');
+console.log('TRITON 3.1 FULL VERIFICATION SUITE (node tests/t3-run-all.js)');
 console.log('====================================================================\n');
 
 const t0 = Date.now();
+let passed = 0;
+let failed = 0;
+let skipped = 0;
+
 for (const file of SUITES) {
   const full = path.resolve(__dirname, file);
-  const out = execFileSync(process.execPath, [full], { cwd: path.resolve(__dirname, '..'), encoding: 'utf8' });
-  process.stdout.write(out);
+  const res = spawnSync(process.execPath, [full], {
+    cwd: path.resolve(__dirname, '..'),
+    encoding: 'utf8',
+    env: process.env
+  });
+  if (res.stdout) process.stdout.write(res.stdout);
+  if (res.stderr) process.stderr.write(res.stderr);
+
+  if (res.status !== 0) {
+    failed++;
+  } else if (/^SKIPPED:/m.test(res.stdout || '')) {
+    skipped++;
+  } else {
+    passed++;
+  }
 }
 
 console.log(`\n====================================================================`);
-console.log(`ALL ${SUITES.length} TRITON 3.0 TEST SUITES PASSED IN ${Date.now() - t0} ms`);
+console.log(`TRITON 3.1 SUITE SUMMARY: ${passed} passed, ${failed} failed, ${skipped} skipped (total ${SUITES.length}) in ${Date.now() - t0} ms`);
 console.log(`====================================================================`);
+
+process.exit(failed > 0 ? 1 : 0);

@@ -252,4 +252,31 @@ if (!positiveControlMasked) {
   throw new Error('[Test 8] Positive control failed: masked interrupt still invoked guest ISR!');
 }
 
+
+// Verify that writing 2^32 + 16 to Port 24 (NET_TX_LEN) does NOT falsely transmit a frame on either JS or WASM
+{
+  let txCountJs = 0, txCountWasm = 0;
+  const nJs = new T.TritonJS({ archMode: "T3" });
+  const nWasm = T.TritonWASM.createSync({ archMode: "T3" });
+  nJs.txHooks.push(() => txCountJs++);
+  nWasm.txHooks.push(() => txCountWasm++);
+  const [tx0, tx1, tx2] = T.numberToWord(4294967296 + 16);
+  const txSrc = T.assemble(`
+    .mode T3
+    .org 0
+    LI R0, #${tx0}
+    LMI R0, #${tx1}
+    LHI R0, #${tx2}
+    OUT R0, #24
+    HALT
+  `, { mode: "T3" });
+  nJs.loadProgram(txSrc.trytes, 0);
+  nWasm.loadProgram(txSrc.trytes, 0);
+  nJs.run(50);
+  nWasm.run(50);
+  if (txCountJs !== 0 || txCountWasm !== 0) {
+    throw new Error(`[Test 8] Port 24 (NET_TX_LEN) falsely transmitted on 2^32 + 16: js=${txCountJs} wasm=${txCountWasm}`);
+  }
+}
+
 console.log(`[PASS] t3-08-devices: 729x486 729-color MMIO framebuffer readback, interrupt-driven keyboard/mouse/StudioNet guest observation (+ positive control) in ${Date.now() - t0} ms`);

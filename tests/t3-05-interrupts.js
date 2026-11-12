@@ -2,7 +2,7 @@
 'use strict';
 
 /**
- * Test 5: Interrupts, Programmable Timer, Priority & Determinism (`tests/t3-05-interrupts.js`)
+ * Test 5: Interrupts, Programmable Timer, Priority, Determinism & Long-Run Counters (`tests/t3-05-interrupts.js`)
  * ConsciousNode SoftWorks
  *
  * Verifies:
@@ -11,8 +11,11 @@
  *     and nested delivery (re-enabling `IE=1` inside an ISR after saving `EPC`/`ESR`)
  *     behave as documented on both JS and WASM.
  *   - Identical input schedule on the virtual clock produces a bit-identical run.
- *   - Positive control: altering an interrupt arrival time by 1 step produces a
- *     different state hash, and masking timer interrupts (`IMASK = 0`) stops delivery.
+ *   - Long-run counters (3.1 Test 3): runs a tight loop for >= 2^31 + 10^6 steps on
+ *     both machines, checking state hashes at intervals and verifying Port 6 and every
+ *     counter (`steps`, `timerTicks`, `timerCount`, `timerPeriod`, `ipend`) agree with no wrap.
+ *   - Positive controls: altering an interrupt arrival time by 1 step produces a
+ *     different state hash, and `narrowWasmState: true` wraps the WASM step counter at 2^31.
  */
 
 const { loadHtmlModule } = require('./t3-common');
@@ -64,7 +67,6 @@ for (const period of [20, 40, 80]) {
   jsVm.loadProgram(built.trytes, 0);
   wasmVm.loadProgram(built.trytes, 0);
 
-  // Advance to right after OUT R0, #9 (step 7, where timerCount=0)
   jsVm.run(7);
   wasmVm.run(7);
 
@@ -188,8 +190,6 @@ for (const period of [20, 40, 80]) {
   jsVm.run(500);
   wasmVm.run(500);
 
-  // Expected delivery sequence in LOG_BUF[0..3]:
-  //   7 (Timer highest priority) -> 8 (Kbd second) -> 9 (Mouse third) -> 7 (Nested Timer inside Mouse ISR!)
   const expectedLog = [7, 8, 9, 7];
   for (let i = 0; i < expectedLog.length; i++) {
     const jv = jsVm.getMem(510 + i);
@@ -231,11 +231,110 @@ for (const period of [20, 40, 80]) {
     throw new Error(`[Test 5] Determinism failure: identical schedule produced 0x${runA.toString(16)} vs 0x${runB.toString(16)}`);
   }
 
-  // Positive control: shifting input arrival from step 500 to step 503 changes virtual-clock state hash
   const runPerturbed = runWithSchedule(503, 1200);
   if (runPerturbed === runA) {
     throw new Error('[Test 5] Positive control failed: perturbed virtual-clock input schedule produced identical hash!');
   }
 }
 
-console.log(`[PASS] t3-05-interrupts: Virtual-clock timer rate, priority order (7->8->9), nested ISR delivery, and schedule determinism (+ positive control) in ${Date.now() - t0} ms`);
+// 4. Long-Run Counters (3.1 Test 3): Tight loop for >= 2^31 + 10^6 steps on both machines
+{
+  function buildCounterLoopSrc(iters) {
+    const [w0, w1, w2] = T.numberToWord(iters);
+    const [tp0, tp1, tp2] = T.numberToWord(3000000000); // TimerPeriod = 3 * 10^9 (> 2^31!)
+    return `
+      .mode T3
+      .org 0
+      LI R0, #${tp0}
+      LMI R0, #${tp1}
+      LHI R0, #${tp2}
+      OUT R0, #9       ; Program 27-trit TimerPeriod = 3,000,000,000 on Port 9
+      LI R1, #${w0}
+      LMI R1, #${w1}
+      LHI R1, #${w2}
+    tight_lp:
+      SUBI R1, R1, #1
+      JPX tight_lp
+      IN R2, #6        ; Read 27-trit virtual clock step counter from Port 6
+      IN R3, #9        ; Read 27-trit TimerPeriod from Port 9
+      MFSPR R4, #4     ; Read IPEND
+      HALT
+    `;
+  }
+
+  // (a) Verify fastForward: true matches step-by-step fastForward: false bit-for-bit on 50,000 iterations (100,011 steps)
+  const smallBuilt = T.assemble(buildCounterLoopSrc(50000), { mode: 'T3' });
+  const jsStep = new T.TritonJS({ archMode: 'T3', fastForward: false });
+  const jsFast = new T.TritonJS({ archMode: 'T3', fastForward: true });
+  const wasmStep = T.TritonWASM.createSync({ archMode: 'T3', fastForward: false });
+  const wasmFast = T.TritonWASM.createSync({ archMode: 'T3', fastForward: true });
+  for (const vm of [jsStep, jsFast, wasmStep, wasmFast]) {
+    vm.loadProgram(smallBuilt.trytes, 0);
+    vm.run(200000);
+  }
+  const hStep = T.computeStateHash(jsStep);
+  if (T.computeStateHash(jsFast) !== hStep ||
+      T.computeStateHash(wasmStep) !== hStep ||
+      T.computeStateHash(wasmFast) !== hStep ||
+      jsFast.getWordNum(2) !== jsStep.getWordNum(2) ||
+      wasmFast.getWordNum(2) !== jsStep.getWordNum(2)) {
+    throw new Error('[Test 5] fastForward mode state hash mismatch against step-by-step execution');
+  }
+
+  // (b) Run tight loop for >= 2^31 + 10^6 steps (1,074,741,824 iterations = 2,149,483,659 steps)
+  const MIN_STEPS = 2147483648 + 1000000; // 2^31 + 10^6 = 2,148,483,648
+  const longIters = 1074741824;           // 2 * 1,074,741,824 + 11 = 2,149,483,659 steps
+  const longBuilt = T.assemble(buildCounterLoopSrc(longIters), { mode: 'T3' });
+
+  function runLongCounterCheck(wasmOpts = {}) {
+    const jsL = new T.TritonJS({ archMode: 'T3', fastForward: true });
+    const wasmL = T.TritonWASM.createSync({ archMode: 'T3', fastForward: true, ...wasmOpts });
+    jsL.loadProgram(longBuilt.trytes, 0);
+    wasmL.loadProgram(longBuilt.trytes, 0);
+
+    // Check state hashes at intervals leading up to, across, and past 2^31
+    const checkpoints = [1000000, 1073741824, 2147483646, 2147483648, 2147483650, 2149500000];
+    let prev = 0;
+    for (const target of checkpoints) {
+      const delta = target - prev;
+      jsL.run(delta);
+      wasmL.run(delta);
+      prev = target;
+      if (jsL.steps !== wasmL.steps ||
+          jsL.timerTicks !== wasmL.timerTicks ||
+          jsL.timerCount !== wasmL.timerCount ||
+          jsL.timerPeriod !== wasmL.timerPeriod ||
+          T.computeStateHash(jsL) !== T.computeStateHash(wasmL)) {
+        throw new Error(`[Test 5] Long-run counter divergence at checkpoint ${target}: jsSteps=${jsL.steps} wasmSteps=${wasmL.steps}`);
+      }
+    }
+
+    const port6Js = jsL.getWordNum(2);
+    const port6Wasm = wasmL.getWordNum(2);
+    const port9Js = jsL.getWordNum(3);
+    const port9Wasm = wasmL.getWordNum(3);
+    if (!jsL.halted || !wasmL.halted ||
+        jsL.steps < MIN_STEPS || wasmL.steps < MIN_STEPS ||
+        port6Js < MIN_STEPS || port6Wasm < MIN_STEPS ||
+        port6Js !== port6Wasm || port6Js !== jsL.steps - 3 ||
+        port9Js !== 3000000000 || port9Wasm !== 3000000000) {
+      throw new Error(`[Test 5] Long-run Port 6 / counter check failed: steps=${jsL.steps}/${wasmL.steps} port6=${port6Js}/${port6Wasm}`);
+    }
+    return jsL.steps;
+  }
+
+  const totalLongSteps = runLongCounterCheck();
+
+  // Positive control: with narrowWasmState: true, WASM wraps steps and TimerPeriod to 32-bit signed i32 and fails
+  let narrowCounterCaught = false;
+  try {
+    runLongCounterCheck({ narrowWasmState: true });
+  } catch (_) {
+    narrowCounterCaught = true;
+  }
+  if (!narrowCounterCaught) {
+    throw new Error('[Test 5] Positive control failed: narrowWasmState: true did not fail long-run counter test!');
+  }
+
+  console.log(`[PASS] t3-05-interrupts: Virtual-clock timer rate, priority order (7->8->9), nested ISR, schedule determinism, and ${totalLongSteps.toLocaleString()}-step (> 2^31 + 10^6) counter/Port 6 verification (+ positive controls) in ${Date.now() - t0} ms`);
+}

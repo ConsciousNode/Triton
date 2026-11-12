@@ -195,4 +195,86 @@ if (!positiveControlCaught) {
   throw new Error('[Test 6] Positive control failed to detect disk image mutation!');
 }
 
+
+// 4. Full 27-Trit Disk LBA, DMA Address, Sector Count & Stream DiskAddr Checks (>= 2^32 must not alias!)
+{
+  const two32Plus10 = 4294967296 + 10;     // aliases LBA 10 if truncated to 32 bits
+  const two32PlusDma = 4294967296 + 10000; // aliases RAM 10000 if truncated to 32 bits
+  const two32PlusCnt = 4294967296 + 2;     // aliases count 2 if truncated to 32 bits
+  const largeStreamAddr = 2541865828329;   // 3^26
+  const [lba0, lba1, lba2] = T.numberToWord(two32Plus10);
+  const [dma0, dma1, dma2] = T.numberToWord(two32PlusDma);
+  const [cnt0, cnt1, cnt2] = T.numberToWord(two32PlusCnt);
+  const [sa0, sa1, sa2] = T.numberToWord(largeStreamAddr);
+
+  const hiDiskSrc = `
+    .mode T3
+    .org 0
+    ; (a) LBA = 2^32 + 10 -> must fail with ERR_BAD_SECTOR (1) and read back full 27-trit LBA on Port 17
+    LI R0, #${lba0}
+    LMI R0, #${lba1}
+    LHI R0, #${lba2}
+    OUT R0, #17
+    IN R1, #17
+    LI R0, #1000
+    OUT R0, #18
+    LI R0, #1
+    OUT R0, #19
+    OUT R0, #20
+    IN R2, #21
+
+    ; (b) DMA_ADDR = 2^32 + 10000 -> must fail with ERR_BAD_DMA_ADDR (2) and read back full 27-trit DMA_ADDR on Port 18
+    LI R0, #10
+    OUT R0, #17
+    LI R0, #${dma0}
+    LMI R0, #${dma1}
+    LHI R0, #${dma2}
+    OUT R0, #18
+    IN R3, #18
+    LI R0, #1
+    OUT R0, #19
+    OUT R0, #20
+    IN R4, #21
+
+    ; (c) DISK_COUNT = 2^32 + 2 -> must fail with ERR_BAD_SECTOR (1) and read back full 27-trit DISK_COUNT on Port 19
+    LI R0, #10
+    OUT R0, #17
+    LI R0, #1000
+    OUT R0, #18
+    LI R0, #${cnt0}
+    LMI R0, #${cnt1}
+    LHI R0, #${cnt2}
+    OUT R0, #19
+    IN R5, #19
+    LI R0, #1
+    OUT R0, #20
+    IN R6, #21
+
+    ; (d) Stream DISK_ADDR (Port 7) with 3^26
+    LI R0, #${sa0}
+    LMI R0, #${sa1}
+    LHI R0, #${sa2}
+    OUT R0, #7
+    IN R7, #7
+    HALT
+  `;
+  const hiBuilt = T.assemble(hiDiskSrc, { mode: "T3" });
+  const dJs = new T.TritonJS({ archMode: "T3" });
+  const dWasm = T.TritonWASM.createSync({ archMode: "T3" });
+  dJs.loadProgram(hiBuilt.trytes, 0);
+  dWasm.loadProgram(hiBuilt.trytes, 0);
+  dJs.run(500);
+  dWasm.run(500);
+
+  if (dJs.getWordNum(1) !== two32Plus10 || dWasm.getWordNum(1) !== two32Plus10 ||
+      dJs.getWordNum(2) !== 1 || dWasm.getWordNum(2) !== 1 ||
+      dJs.getWordNum(3) !== two32PlusDma || dWasm.getWordNum(3) !== two32PlusDma ||
+      dJs.getWordNum(4) !== 2 || dWasm.getWordNum(4) !== 2 ||
+      dJs.getWordNum(5) !== two32PlusCnt || dWasm.getWordNum(5) !== two32PlusCnt ||
+      dJs.getWordNum(6) !== 1 || dWasm.getWordNum(6) !== 1 ||
+      dJs.getWordNum(7) !== dWasm.getWordNum(7)) {
+    throw new Error(`[Test 6] Full-width 27-trit disk register/DMA bounds check failed: js=${[1,2,3,4,5,6,7].map(r=>dJs.getWordNum(r))} wasm=${[1,2,3,4,5,6,7].map(r=>dWasm.getWordNum(r))}`);
+  }
+}
+
 console.log(`[PASS] t3-06-disk: Multi-sector DMA read/write, IRQ_DISK interrupt, bad sector/addr/cmd errors, and ${exportedBytes.byteLength.toLocaleString()}-byte image round-trip (+ positive control) in ${Date.now() - t0} ms`);

@@ -1,7 +1,7 @@
 'use strict';
 
 /**
- * Shared loader & PRNG helper for Triton 3.0 headless verification suites (`tests/t3-*.js`)
+ * Shared loader & PRNG helper for Triton 3.1 headless verification suites (`tests/t3-*.js`)
  * ConsciousNode SoftWorks
  */
 
@@ -10,15 +10,14 @@ const path = require('path');
 const vm = require('vm');
 
 function loadHtmlModule(filename) {
+  const repoRoot = path.resolve(__dirname, '..');
   const candidates = [
-    path.resolve(__dirname, '..', filename),
-    path.resolve(__dirname, filename),
-    path.resolve('/working_dir/c_8d339fc14a6fb5fc/artifacts/file_generation/ttl=63d/output', filename),
-    path.resolve('/working_dir/c_8d339fc14a6fb5fc/work', filename)
+    path.resolve(repoRoot, filename),
+    path.resolve(__dirname, filename)
   ];
   const htmlPath = candidates.find(p => fs.existsSync(p));
   if (!htmlPath) {
-    throw new Error(`Could not find ${filename}`);
+    throw new Error(`Could not find ${filename} relative to ${repoRoot}`);
   }
   const htmlContent = fs.readFileSync(htmlPath, 'utf8');
   const scriptMatches = [...htmlContent.matchAll(/<script(?![^>]*type="application\/json")[^>]*>([\s\S]*?)<\/script>/g)];
@@ -33,6 +32,8 @@ function loadHtmlModule(filename) {
     Int32Array,
     Float32Array,
     Float64Array,
+    BigInt64Array,
+    BigUint64Array,
     DataView,
     ArrayBuffer,
     TextEncoder,

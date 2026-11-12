@@ -188,4 +188,56 @@ if (!positiveControlCorrupted) {
   throw new Error('[Test 4] Positive control failed: unlocked user program did not corrupt kernel sentinel!');
 }
 
+
+// 4. Full 27-Trit SPR Width Verification (VBR, UBASE, ULIMIT, EPC, ESP, ESR, ECAUSE, EADDR, KSP >= 2^31)
+{
+  const jsSpr = new T.TritonJS({ archMode: "T3" });
+  const wasmSpr = T.TritonWASM.createSync({ archMode: "T3" });
+  const sprIndices = [5, 6, 7, 9, 10, 11, 12, 13, 14];
+  const testVals = [
+    2147483648,        // 2^31
+    -2147483648,       // -2^31
+    4294967296 + 777,  // 2^32 + 777
+    847288609443,      // 3^25
+    2541865828329,     // 3^26
+    -3812798742493     // -WORD_HALF
+  ];
+  for (const sprIdx of sprIndices) {
+    for (const v of testVals) {
+      const [w0, w1, w2] = T.numberToWord(v);
+      const [mt0, mt1] = T.encodeInstruction(55, 0, 1, sprIdx); // MTSPR R1, #sprIdx
+      const [mf0, mf1] = T.encodeInstruction(54, 2, 0, sprIdx); // MFSPR R2, #sprIdx
+      for (const vm of [jsSpr, wasmSpr]) {
+        vm.pc = 0; vm.priv = 0; vm.halted = 0;
+        vm.setWord(1, w0, w1, w2);
+        vm.setWord(2, 0, 0, 0);
+        vm.setMem(0, mt0); vm.setMem(1, mt1);
+        vm.setMem(2, mf0); vm.setMem(3, mf1);
+        vm.step(); vm.step();
+      }
+      if (jsSpr.getSPR(sprIdx) !== v || wasmSpr.getSPR(sprIdx) !== v ||
+          jsSpr.getWordNum(2) !== v || wasmSpr.getWordNum(2) !== v) {
+        throw new Error(`[Test 4] 27-trit SPR[${sprIdx}] mismatch for ${v}: js=${jsSpr.getWordNum(2)} wasm=${wasmSpr.getWordNum(2)}`);
+      }
+    }
+  }
+  // Boolean SPRs (IE=2, PROT_EN=8, TRAP_DIV0=15) written with 2^32 (non-zero multiple of 2^32) must evaluate to 1
+  const [z0, z1, z2] = T.numberToWord(4294967296);
+  for (const bIdx of [2, 8, 15]) {
+    const [mt0, mt1] = T.encodeInstruction(55, 0, 1, bIdx);
+    const [mf0, mf1] = T.encodeInstruction(54, 2, 0, bIdx);
+    for (const vm of [jsSpr, wasmSpr]) {
+      vm.pc = 0; vm.priv = 0; vm.setSPR(bIdx, 0);
+      vm.setWord(1, z0, z1, z2);
+      vm.setMem(0, mt0); vm.setMem(1, mt1);
+      vm.setMem(2, mf0); vm.setMem(3, mf1);
+      vm.step(); vm.step();
+    }
+    if (jsSpr.getSPR(bIdx) !== 1 || wasmSpr.getSPR(bIdx) !== 1 ||
+        jsSpr.getWordNum(2) !== 1 || wasmSpr.getWordNum(2) !== 1) {
+      throw new Error(`[Test 4] Boolean SPR[${bIdx}] failed on 2^32 non-zero word`);
+    }
+  }
+}
+
 console.log(`[PASS] t3-04-protection: User bounds fault (Vec 3), all 6 supervisor instructions fault (Vec 2), OS survives, and positive control detects kernel corruption in ${Date.now() - t0} ms`);
