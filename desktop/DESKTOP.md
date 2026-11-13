@@ -176,3 +176,47 @@ cell_ref     ::= ("A".."J") ("1".."30")
 - **StudioNet v2 Header (16 Bytes, Little-Endian, No Checksum)**:
   - `[0..1] dst (u16 LE)`, `[2..3] src (u16 LE)`, `[4] proto (u8: 1=LOOP, 2=SDP, 3=SSP)`, `[5] flags (u8: 1=SYN, 2=ACK, 4=PSH, 8=FIN)`, `[6..7] sport (u16 LE)`, `[8..9] dport (u16 LE)`, `[10..11] seq (u16 LE)`, `[12..13] ack (u16 LE)`, `[14..15] len (u16 LE, 0..480)`.
 - **Ping Timeout Budget**: `250,000` virtual steps (~100 scheduler slices). If no SDP port-7 `ACK|PSH` reply arrives within `250,000` steps of `SYS_NET_PING`, App 10 sets `K_NET_LAST_RTT = -2` and displays `NO REPLY`.
+
+
+## App 11: Trytris
+
+App 11 is a balanced-ternary triangular falling-piece game written in Triton 3 assembly (`app11_try_rom`), launched from the taskbar button `[T3]` or via Terminal `RUN 11`.
+
+### Controls & Keys
+
+| Key | Action |
+|---|---|
+| `0`–`9` | Append digit to pending decimal seed (`0..4294967295`) |
+| `M` | Cycle pending mode (`NORMAL`, `CURSED`, `HEXIAMOND`) |
+| `U` / `D` | Increment / decrement pending starting level (`1..15`) |
+| `Enter` | Start new game (`reset(seed, mode)` followed by `setLevel(startLevel)`) |
+| `K` | Toggle between **Live** and **Lockstep** mode (writes `TRYSTATE` when entering Lockstep) |
+| `L` / `←` | Lockstep: `tick('LEFT')` |
+| `R` / `→` | Lockstep: `tick('RIGHT')` |
+| `X` / `↑` | Lockstep: `tick('ROT_CW')` |
+| `Z` | Lockstep: `tick('ROT_CCW')` |
+| `Space` | Lockstep: `tick('HARD')` |
+| `N` | Lockstep: `tick(null)` |
+| `S` / `↓` | Lockstep: `softDrop()` |
+
+### Live Gravity Rate
+
+- **Virtual clock rate:** `200` virtual steps per millisecond.
+- **Gravity interval:** `max(22000, 170000 - (level - 1) * 10000)` virtual steps (corresponding to `max(110, 850 - (level - 1) * 50)` ms).
+
+### Disk Files
+
+- **`TRYSTATE`** (355 trytes, written after `Enter`/`K` and every Lockstep action):
+  - `0..2`: `seed` (27-trit word)
+  - `3`: `mode` (`0 = NORMAL`, `1 = CURSED`, `2 = HEXIAMOND`)
+  - `4..6`: `score` (27-trit word)
+  - `7`: `lines`
+  - `8`: `level` (`1..15`)
+  - `9`: `comboStreak`
+  - `10`: `backToBackActive` (`0` or `1`)
+  - `11`: `gameOver` (`0` or `1`)
+  - `12..15`: active piece (`id` `1..16`, `rotIndex`, `r`, `c`)
+  - `16..18`: next 3 piece IDs (`1..16`)
+  - `19..354`: `28 × 12` board cells in row-major order (`0` = empty, `1..4` = `P1..P4`, `5..16` = `H1..H12`)
+- **`TRYHI`** (3 trytes, loaded at startup and updated whenever `score > highScore`):
+  - `0..2`: persisted high score (27-trit word).

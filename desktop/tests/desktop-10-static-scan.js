@@ -33,6 +33,11 @@ function runTest() {
   if (/buildStudioNet|parseStudioNet|computeStudioNetChecksum/.test(hostAfterTemplate)) {
     throw new Error('Host code contains StudioNet protocol stack helpers instead of pure byte relay');
   }
+  const hostBeforeTemplate = afterMachine.split('const TRITOS_DESKTOP_TEMPLATE')[0] || '';
+  const hostOutsideTemplate = hostBeforeTemplate + "\n" + hostAfterTemplate;
+  if (/TrytrisEngine|SeededBagGenerator|createMulberry32|encodeBoardBalancedTernary|1831565813|0x6d2b79f5/i.test(hostOutsideTemplate)) {
+    throw new Error('Host code outside guest template contains Trytris game logic');
+  }
 
   // Verify all test files in desktop/tests/*.js never read or write guest-private memory or SpiralOS RAM
   const testDir = path.dirname(__filename);

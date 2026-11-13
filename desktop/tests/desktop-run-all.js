@@ -21,7 +21,14 @@ const suites = [
   './desktop-18-spiralos-interop.js',
   './desktop-09-positive-controls.js',
   './desktop-10-static-scan.js',
-  './desktop-11-browser.js'
+  './desktop-11-browser.js',
+  './desktop-22-trytris-tables.js',
+  './desktop-23-trytris-differential.js',
+  './desktop-24-trytris-negation.js',
+  './desktop-25-trytris-persistence.js',
+  './desktop-26-trytris-isolation.js',
+  './desktop-28-trytris-positive-controls.js',
+  './desktop-27-trytris-browser.js'
 ];
 
 const results = [];
