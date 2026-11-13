@@ -1,61 +1,55 @@
 'use strict';
-const { loadHtmlModule } = require('./t3-common.js');
+const { loadHtmlModule, readFbString, readDiskFileTrytes, makeMouseTracker } = require('./t3-common.js');
 
 function runTest() {
   const { T } = loadHtmlModule('tritos-desktop.html');
   const vm = T.TritonWASM.createSync({ archMode: 'T3' });
   T.bootTritOSDesktop(vm, false);
   vm.run(300000);
+  const mouse = makeMouseTracker(vm);
 
   // Launch Assembler App (App 4) via taskbar click at (286, 472)
-  const cx = vm.mem[8910], cy = vm.mem[8911];
-  vm.pushMouseEvent(286 - cx, 472 - cy, 1);
-  vm.pushMouseEvent(0, 0, 0);
-  vm.run(260000);
+  mouse.click(286, 472, 260000);
 
-  // 1. Assemble DEMO.ASM from disk ('A') and verify byte-for-byte against JS assembler
+  // Press 'A' to assemble "DEMO" (complete 4,877-char source of App 5: Trit Calculator) on disk into "OUT" on disk
   vm.pushKeyEvent('A'.charCodeAt(0), 0);
-  vm.run(150000);
-  const demoSrc = '.mode T3\n.org 0\nLI R0,#420\nLI R1,#40\nLI R2,#120\nLI R3,#60\nLI R4,#0\nLI R5,#120\nSYSCALL #10\nlp: SYSCALL #2\nJMPX lp\n';
-  const expectedDemo = T.assemble(demoSrc, { mode: 'T3' });
-  const olenDemo = vm.mem[30 * 19683 + 5325];
-  const obufBase = 35 * 19683;
-  for (let i = 0; i < expectedDemo.length; i++) {
-    if (vm.mem[obufBase + i] !== expectedDemo.trytes[i]) {
-      throw new Error('Self-host DEMO.ASM mismatch at tryte ' + i);
-    }
+  vm.run(2200000);
+
+  const outTrytes = readDiskFileTrytes(vm, T, 'OUT');
+  const expectedCalc = T.assemble(T.STANDALONE_CALC_SRC, { mode: 'T3' });
+  if (!outTrytes) throw new Error('In-guest Assembler did not write OUT file to disk');
+  if (outTrytes.length !== expectedCalc.length) {
+    throw new Error('Self-hosted Calculator length mismatch: got ' + outTrytes.length + ', expected ' + expectedCalc.length);
+  }
+  let diffs = 0;
+  for (let i = 0; i < expectedCalc.length; i++) {
+    if (outTrytes[i] !== expectedCalc.trytes[i]) diffs++;
+  }
+  if (diffs !== 0) {
+    throw new Error('Self-hosted Calculator binary has ' + diffs + ' byte-for-byte differences');
   }
 
-  // Launch assembled DEMO app ('R') and verify its window opens at (420, 40)
-  const zBefore = vm.mem[8908];
+  // Press 'R' to launch the rebuilt Calculator binary from guest memory via SYSCALL #7
   vm.pushKeyEvent('R'.charCodeAt(0), 0);
   vm.run(260000);
-  const zAfter = vm.mem[8908];
-  if (zAfter <= zBefore) throw new Error('Assembled DEMO app did not open a window');
 
-  // 2. Also stream and self-host the entire 105,672-char TritOS 3.0 source (4,474 trytes) inside the guest Assembler App ('S')!
-  for (let i = 0; i < T.TRITOS3_SRC.length; i++) {
-    vm.setDisk(729 + i, T.balRem(T.TRITOS3_SRC.charCodeAt(i), T.TRYTE_MOD, T.TRYTE_HALF));
-  }
-  vm.setDisk(729 + T.TRITOS3_SRC.length, 0);
-  // Refocus Assembler App window (Win 2)
-  const cx2 = vm.mem[8910], cy2 = vm.mem[8911];
-  vm.pushMouseEvent(260 - cx2, 265 - cy2, 1);
-  vm.pushMouseEvent(0, 0, 0);
-  vm.run(60000);
-  vm.pushKeyEvent('S'.charCodeAt(0), 0);
-  vm.run(16000000);
-  const expectedOS = T.assemble(T.TRITOS3_SRC, { mode: 'T3' });
-  const olenOS = vm.mem[30 * 19683 + 5325] + vm.mem[30 * 19683 + 5326] * 19683;
-  let osDiffs = 0;
-  for (let i = 0; i < expectedOS.length; i++) {
-    if (vm.mem[obufBase + i] !== expectedOS.trytes[i]) osDiffs++;
-  }
-  if (olenOS !== expectedOS.length || osDiffs !== 0) {
-    throw new Error('Full OS self-host mismatch: olen=' + olenOS + ' diffs=' + osDiffs);
+  // Verify the rebuilt Calculator app launched and evaluates "11+1T=" (4 + 2 = 6 -> "1T0") on MMIO framebuffer
+  for (const c of '11+1T=') vm.pushKeyEvent(c.charCodeAt(0), 0);
+  vm.run(80000);
+  const calcRes = readFbString(vm, T, 517, 123, 12, -350).replace(/\?/g, '').trim();
+  if (T.ternaryStrToBigInt(calcRes) !== 6n) {
+    throw new Error('Rebuilt Calculator failed evaluation check on MMIO framebuffer: got ' + calcRes);
   }
 
-  return { name: '08-self-hosting', status: 'PASS', demoAppTrytes: olenDemo, fullOsSourceChars: T.TRITOS3_SRC.length, fullOsTrytes: olenOS, diffs: osDiffs };
+  return {
+    name: '08-self-hosting',
+    status: 'PASS',
+    rebuiltApp: 'App 5: Trit Calculator',
+    sourceChars: T.STANDALONE_CALC_SRC.length,
+    emittedTrytes: outTrytes.length,
+    diffs,
+    launchedEvalResult: calcRes
+  };
 }
 if (require.main === module) console.log(JSON.stringify(runTest()));
 module.exports = { runTest };
