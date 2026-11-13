@@ -1,0 +1,16 @@
+{
+ "refSha": "54b0005a4384aeda0511938d009720cef14105067b6951e422bfaf32c56a0012",
+ "runs": 1,
+ "statesCompared": 75,
+ "gameOvers": 0,
+ "boots": 1,
+ "linesMax": 1,
+ "maxLevelSeen": 8,
+ "profiles": {
+  "greedy": 1
+ },
+ "modes": {
+  "NORMAL": 1
+ },
+ "firstDivergence": "run 0 act 73 H (seed 4294967295 NORMAL L8 greedy): score guest=800 ref=801"
+}

@@ -1,0 +1,22 @@
+{
+ "refSha": "91293917014195ff492ab84dc15fa7f1c0d812e5c28a3580943573437a11a683",
+ "runs": 60,
+ "statesCompared": 9758,
+ "gameOvers": 46,
+ "boots": 7,
+ "linesMax": 1,
+ "maxLevelSeen": 15,
+ "profiles": {
+  "uniform": 12,
+  "wallhug": 12,
+  "rightwall": 12,
+  "gravity": 12,
+  "stacker": 12
+ },
+ "modes": {
+  "NORMAL": 19,
+  "HEXIAMOND": 26,
+  "CURSED": 15
+ },
+ "firstDivergence": null
+}

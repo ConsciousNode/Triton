@@ -1,0 +1,18 @@
+{
+ "refSha": "91293917014195ff492ab84dc15fa7f1c0d812e5c28a3580943573437a11a683",
+ "runs": 18,
+ "statesCompared": 4192,
+ "gameOvers": 11,
+ "boots": 3,
+ "linesMax": 6,
+ "maxLevelSeen": 13,
+ "profiles": {
+  "greedy": 18
+ },
+ "modes": {
+  "NORMAL": 6,
+  "CURSED": 8,
+  "HEXIAMOND": 4
+ },
+ "firstDivergence": null
+}
