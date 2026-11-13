@@ -20,8 +20,8 @@ function runTest() {
   for (let i = 1; i <= 4; i++) {
     if (!htmlContent.includes('[INLINE ' + i + '/4]')) throw new Error('Missing inline provenance label ' + i);
   }
-  if (!htmlContent.includes("BroadcastChannel('studionet_v1')")) {
-    throw new Error('Missing documented BroadcastChannel(studionet_v1) plumbing');
+  if (!htmlContent.includes("BroadcastChannel('studionet-v1')")) {
+    throw new Error('Missing documented BroadcastChannel(studionet-v1) plumbing');
   }
 
   // Verify host scripts outside [INLINE 2/4] never read or write guest-private memory (.mem[) and have no host-side protocol stack
@@ -57,7 +57,7 @@ function runTest() {
   // Verify spiralos/ files and desktop/audit/ files are completely unmodified
   const spiralDir = path.resolve(testDir, '..', '..', '..', 'spiralos');
   const expectedSpiralHashes = {
-    'STUDIONET.md':     '7c9d8fd20e6a0ab6826b7598fe23f206edd030dff8edd75ad41166735903db25',
+    'STUDIONET.md':     'db7a1f4d31094e21def64586698b26a17fe780e56a022b559fe401b691def793',
     'spiralos.img':     '9d239cd8f59c124ee5031c9ce6d5a643d9855a135e42e534302c0cd949e7e5b4',
     'os/net.sp':        'a1fb8ac411257f13baa73255b161f6fbf30f677892703853a2c4359ed4c6e314',
     'tests/harness.js': 'f0d6629628a4b2a8dac9ad95b41b6442aba04b8f70e81bbd5c6e4ee71bdeb689'

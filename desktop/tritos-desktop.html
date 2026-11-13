@@ -9410,11 +9410,11 @@ if (typeof document !== 'undefined') {
     wasmVm.run(300000);
     jsVm.run(300000);
 
-    // Join BroadcastChannel('studionet_v1') so tabs in the same browser share one StudioNet network
+    // Join BroadcastChannel('studionet-v1') so tabs in the same browser share one StudioNet network
     let studioNetChan = null;
     if (typeof BroadcastChannel !== 'undefined') {
       try {
-        studioNetChan = new BroadcastChannel('studionet_v1');
+        studioNetChan = new BroadcastChannel('studionet-v1');
         studioNetChan.onmessage = (ev) => {
           if (ev.data) {
             wasmVm.receiveNetFrame(ev.data);

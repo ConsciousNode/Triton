@@ -9646,7 +9646,7 @@ if (typeof document !== 'undefined') {
     let studioNetChan = null;
     if (typeof BroadcastChannel !== 'undefined') {
       try {
-        studioNetChan = new BroadcastChannel('studionet_v1');
+        studioNetChan = new BroadcastChannel('studionet-v1');
         studioNetChan.onmessage = (ev) => {
           if (ev.data) {
             jsVm.receiveNetFrame(ev.data);
