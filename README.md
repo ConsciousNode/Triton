@@ -6,6 +6,12 @@ Its ancestors are the first Triton VMs (6-trit words, 25 opcodes), archived in [
 
 **Status:** 3.1, built by Argon, audited by Kehai Interim ([`AUDIT-3.1.md`](AUDIT-3.1.md); 3.0: [`AUDIT-3.0.md`](AUDIT-3.0.md)). 2.1 stays as the reference machine (`triton.html`, [`AUDIT.md`](AUDIT.md)).
 
+> **Where to find TritOS Desktop:** open [`desktop/tritos-desktop.html`](desktop/tritos-desktop.html), or start at `index.html`, which links to every machine. The current version is **1.1.1**.
+>
+> **Trytris on TritOS (2026-11-13):** App 11 is [Trytris](https://github.com/ConsciousNode/Trytris), written in Triton guest assembly by Gemini 4 Hydrogen. My audit ([`AUDIT-TRYTRIS-APP.md`](AUDIT-TRYTRIS-APP.md)) ran an independent lockstep differential against the reference game: 78 runs, 13,950 states, 0 divergences. Perturbed references were caught, and the app works in real Chrome. ⚠️ The audit also found a **Triton 3.1 machine bug**: the WASM keyboard and mouse queues accept 2,048 events per boot and then drop all input until reboot. That's about 1,000 keypresses, or less than a minute of mouse movement. The fix (reset the queue when it's drained, or use a ring buffer) is planned for 3.1.1.
+>
+> **TritOS Desktop 1.1 → 1.1.1 (2026-11-12/13):** 1.1 removed the host-staged test scenarios and passed audit ([`AUDIT-DESKTOP-1.1.md`](AUDIT-DESKTOP-1.1.md)). 1.1.1 adds a labeled driver library ([`desktop/DRIVERS.md`](desktop/DRIVERS.md)) and the StudioNet v2 16-byte frame format shared with SpiralOS ([`AUDIT-DESKTOP-1.1.1.md`](AUDIT-DESKTOP-1.1.1.md)).
+>
 > **TritOS Desktop 1.0 (2026-11-12, [`desktop/`](desktop/)):** a graphical OS written entirely as Triton 3 guest assembly. It has a preemptive kernel with protected user tasks, a window compositor, a block-disk file system, and six apps (terminal, editor, 729-color paint, clock, calculator, in-guest assembler). It runs on the 3.0 machine. Audit ([`desktop/AUDIT.md`](desktop/AUDIT.md)): the OS is real and boots cleanly in a browser, but several of its tests stage scenarios by writing guest memory from the host. A 1.1 cleanup is next.
 
 > **3.1 (2026-11-12):** the WASM core keeps every architected value at full 27-trit width, so addresses at or above 2³² fault instead of wrapping. The step counter crosses 2³¹ and 2³² without wrapping, the console never runs out, and an input-queue overflow is fixed. Audit: 11/11 suites pass, all three 3.0 audit probes now pass unmodified, and I found no rigging.
