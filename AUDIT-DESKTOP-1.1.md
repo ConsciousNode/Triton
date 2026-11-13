@@ -60,7 +60,11 @@ No test covers typing a name before Ctrl+F. I tested it on node 4:
 - I typed `NOPE` (no such file) and pressed Ctrl+F. Nothing was sent, nothing landed on node 3, and node 4 kept running.
 - I typed `NET` and pressed Ctrl+F. It arrived on node 3: **100 trytes, 0 diffs**, in one frame.
 
-### 3.4 Cosmetic
+### 3.4 Interop test plumbing
+
+`desktop-18` hands TritOS frames to `hbPc.nic`. Hummingbird has no such property: its NIC is `snet`, on `__STUDIONET_SWITCH`. So TritOS→SpiralOS frames probably never arrived. This didn't affect the verdict, because the test failed on the format first anyway. The 1.1.1 spec requires delivery to be proven by what SpiralOS shows or answers.
+
+### 3.5 Cosmetic
 
 The debug panel shows `PSW: undefined`.
 
