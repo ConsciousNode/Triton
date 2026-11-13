@@ -1,4 +1,4 @@
-# TritOS Desktop 1.1 — Architecture, Syscall, Application & Protocol Reference
+# TritOS Desktop 1.1.1 — Architecture, Syscall, Application & Protocol Reference
 
 ## 1. Hardware Platform & Memory Map (Triton 3.1)
 
@@ -168,3 +168,11 @@ cell_ref     ::= ("A".."J") ("1".."30")
 - **Number Representation & Division Semantics**: All numbers are 27-trit signed balanced-ternary words (integers). Division uses hardware `DIV` (`Math.trunc(a / b)`, truncating toward zero).
 - **Division by Zero**: Checked before executing `DIV`; if the divisor is `0`, evaluation sets cell error state `3` and displays/saves `#DIV/0!`.
 - **Circular Reference Detection**: Depth-first 3-color visitation (`0 = unvisited, 1 = visiting, 2 = evaluated`). Encountering a cell with `CELL_VISIT == 1` sets error state `4` (`#CYCLE!`), which propagates to dependent formulas.
+
+
+## 5. StudioNet v2 (16-Byte Format) & Driver Library Summary (1.1.1)
+
+- **Driver Library**: All hardware access in the guest kernel is partitioned into 6 contiguous, labeled modules (`disk v1`, `timer v1`, `keyboard v1`, `mouse v1`, `framebuffer v1`, `net v2`). See `desktop/DRIVERS.md` for the complete entry-table, register, port, memory, IRQ vector, and error specification.
+- **StudioNet v2 Header (16 Bytes, Little-Endian, No Checksum)**:
+  - `[0..1] dst (u16 LE)`, `[2..3] src (u16 LE)`, `[4] proto (u8: 1=LOOP, 2=SDP, 3=SSP)`, `[5] flags (u8: 1=SYN, 2=ACK, 4=PSH, 8=FIN)`, `[6..7] sport (u16 LE)`, `[8..9] dport (u16 LE)`, `[10..11] seq (u16 LE)`, `[12..13] ack (u16 LE)`, `[14..15] len (u16 LE, 0..480)`.
+- **Ping Timeout Budget**: `250,000` virtual steps (~100 scheduler slices). If no SDP port-7 `ACK|PSH` reply arrives within `250,000` steps of `SYS_NET_PING`, App 10 sets `K_NET_LAST_RTT = -2` and displays `NO REPLY`.
