@@ -1,0 +1,59 @@
+5161c5161
+<   LI R4, #:
+---
+>   LI R4, #58
+5267c5267
+<   CMPI R0, #.
+---
+>   CMPI R0, #46
+5270c5270
+<   CMPI R0, #.
+---
+>   CMPI R0, #46
+5273c5273
+<   CMPI R0, #/
+---
+>   CMPI R0, #47
+5289c5289
+<   CMPI R0, #T
+---
+>   CMPI R0, #'T'
+5292c5292
+<   CMPI R0, #o
+---
+>   CMPI R0, #'o'
+5295c5295
+<   CMPI R0, #:
+---
+>   CMPI R0, #58
+5384c5384
+<   CMPI R0, #P ; PUT or POST
+---
+>   CMPI R0, #'P' ; PUT or POST
+5387c5387
+<   CMPI R0, #U ; PUT -> 201 CREATED
+---
+>   CMPI R0, #'U' ; PUT -> 201 CREATED
+15481c15481
+<   CMPI R0, #s
+---
+>   CMPI R0, #'s'
+15484c15484
+<   CMPI R0, #n
+---
+>   CMPI R0, #'n'
+15487c15487
+<   CMPI R0, #a
+---
+>   CMPI R0, #'a'
+15757,15763c15757,15758
+< str_srrp_get_req:  .stringz "GET /index.hts SRRP/1
+< 
+< "
+< str_srrp_post_req: .stringz "POST /form SRRP/1
+< Length: 16
+< 
+< user=triton&ok=1"
+---
+> str_srrp_get_req:  .stringz "GET /index.hts SRRP/1\n\n"
+> str_srrp_post_req: .stringz "POST /form SRRP/1\nLength: 16\n\nuser=triton&ok=1"
