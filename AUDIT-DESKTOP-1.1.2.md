@@ -34,6 +34,7 @@ Of the remaining two, one is our environment, and one is a SpiralOS interop gap 
 | `desktop-run-all.js`, fixed | **27/29 PASS.** Failing: 18 (SpiralOS interop) and 27 (needs Python selenium here) |
 | `desktop-30-bugs-112.js`, fixed | PASS. Reproduces all bugs on 1.1.1: taskbar 4,869 px damaged, Paint 0/41, editor keeps only `abc…p`, 6 bad key comparisons. On 1.1.2: 0 px, 41/41, full alphabet saved and reloaded, 0 bad comparisons |
 | `desktop-35-solitaire-112.js`, fixed | PASS. Toolbar `[KLON][FREE][SPID][UNDO]`. In-guest 500 moves + 500 undos with 0 board differences. In-guest deal #1 is WINNABLE in 104 nodes (budget 110), and #11982 is UNKNOWN at 110. Both match the JS reference. A dead-end board is UNWINNABLE. Deals 1..200 at budget 110: **37** winnable / 163 unknown / **0 unwinnable** |
+| `desktop-27-trytris-browser.js` (Selenium + ChromeDriver 153, fixed build) | PASS: 20 hard drops, 0 page errors. **The full suite on the fixed build is 28/29**; only 18 (interop, awaiting SpiralOS 1.4) fails |
 | `desktop-29-input-soak.py` (real Chromium) | Fixed: PASS, keyboard probe 96 px, mouse 15 px. **As delivered: FAIL,** 0/0 px, with page error `Invalid string literal` |
 | Machine integrity | Triton 3.1.1 machine block unchanged (`ffc89ac0…`) |
 
