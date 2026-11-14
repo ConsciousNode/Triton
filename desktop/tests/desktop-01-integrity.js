@@ -10,12 +10,12 @@ function runTest() {
   if (!m) throw new Error('Missing machine block markers');
   const hash = crypto.createHash('sha256').update(m[1] + '\n', 'utf8').digest('hex');
 
-  // Verify against attached triton3.html if present, and against pinned 3.1 SHA-256
-  const expected = '24f32f41406763dbded240397639559ac98d18b15537f8d1fe5bfabe92fa3831';
+  // Verify against attached triton3.html if present, and against pinned 3.1.1 SHA-256
+  const expected = 'ffc89ac07c9294bc3d746172633dd8d1479d5d361768223501dc73ab65ad2a5d';
   const refPath = path.resolve(path.dirname(htmlPath), '..', 'triton3.html');
   if (fs.existsSync(refPath)) {
     const refLines = fs.readFileSync(refPath, 'utf8').split('\n');
-    const refBlock = refLines.slice(430, 9635).join('\n') + '\n';
+    const refBlock = refLines.slice(430, 9663).join('\n') + '\n';
     const refHash = crypto.createHash('sha256').update(refBlock, 'utf8').digest('hex');
     if (hash !== refHash) throw new Error('Machine block does not match attached triton3.html: ' + hash + ' vs ' + refHash);
   }

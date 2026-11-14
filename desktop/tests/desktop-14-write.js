@@ -1,9 +1,27 @@
 'use strict';
 const { loadHtmlModule, readFbString, readDiskFileString, makeMouseTracker } = require('./t3-common.js');
 
+// 3.1.1: type in bursts the guest can drain, the way a person types. Before 3.1.1 this test
+// pushed ~2,500 keys in one burst; that only passed on TritonJS's unbounded queue (on
+// TritonWASM, keys past 2,048 were dropped and it failed). Both cores now hold 2,048 pending
+// events, and this test runs on both.
+function typeKeys(vm, codes) {
+  for (let i = 0; i < codes.length; i += 64) {
+    for (let j = i; j < Math.min(codes.length, i + 64); j++) vm.pushKeyEvent(codes[j], 0);
+    vm.run(150000);
+  }
+}
+
 function runTest() {
+  const a = runOnCore('js');
+  const b = runOnCore('wasm');
+  if (a.charCount !== b.charCount) throw new Error('JS/WASM disagree: ' + a.charCount + ' vs ' + b.charCount);
+  return Object.assign({}, a, { cores: ['js', 'wasm'] });
+}
+
+function runOnCore(core) {
   const { T } = loadHtmlModule('tritos-desktop.html');
-  const vm = new T.TritonJS({ archMode: 'T3' });
+  const vm = core === 'js' ? new T.TritonJS({ archMode: 'T3' }) : T.TritonWASM.createSync({ archMode: 'T3' });
   T.bootTritOSDesktop(vm, false);
   vm.run(300000);
   const mouse = makeMouseTracker(vm);
@@ -17,9 +35,7 @@ function runTest() {
     lines.push('Line ' + String(i).padStart(2, '0') + ': TritOS 1.1 Write word processor test paragraph ' + (i * 19));
   }
   const body = lines.join('\n');
-  for (let i = 0; i < body.length; i++) {
-    vm.pushKeyEvent(body.charCodeAt(i), 0);
-  }
+  typeKeys(vm, Array.from(body, (ch) => ch.charCodeAt(0)));
   // Exercise Backspace, Left, Right, Delete, Home, End, PgUp, PgDn:
   // Type 'X', Backspace 'X'; Left 1 char, type 'Y', Left 1 char, Delete 'Y'; Home, End, PgUp, PgDn, End
   vm.pushKeyEvent('X'.charCodeAt(0), 0);
