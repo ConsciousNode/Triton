@@ -1,0 +1,1 @@
+{"name":"38-browser-web-1.1.2","status":"PASS","getPath":"/index.hts","htsRenderedLines":["StudioNet","Hello Web","Link"],"snapImage":{"width":10,"height":10,"totalPixels":100,"fbPixelDiffs":0},"postForm":{"method":"POST","path":"/form","type":"form","body":"user=triton&ok=1"}}

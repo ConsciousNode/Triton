@@ -1,0 +1,1 @@
+{"name":"04-fault-isolation","status":"PASS","csumBefore":2692044984112,"csumAfter":2692044984112,"intact":true,"trapCount":4,"causes":[3,2,5,3],"banner":"FAULT: TASK KILLED"}

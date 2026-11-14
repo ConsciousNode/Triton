@@ -1,0 +1,1 @@
+{"autorepeatGate":{"acceptedIn95ms":4,"maxAllowedFor95ms":4},"deltaSteps10s":1999800,"idleWallSec":10,"measuredRowsPerSec":1.02,"name":"39-pacing-browser","rateShownInDebugPanel":true,"rowsDropped10s":10,"status":"PASS","stepsFrom20RapidKeys":0}

@@ -1,0 +1,1 @@
+{"name":"28-trytris-positive-controls","status":"PASS","perturbTryRotationCaught":"run=0(NORMAL,s=0,lv=1) act=12(HARD): board[26][4] guest=1 ref=0","perturbTryPrngCaught":"run=0(NORMAL,s=0,lv=1) init: active_id guest=2 ref=4","perturbTryCollapseCaught":"Board mismatch after clear at (25,7): guest=0 ref=4","perturbTryScoreCaught":{"guestScore":300,"refScore":250}}

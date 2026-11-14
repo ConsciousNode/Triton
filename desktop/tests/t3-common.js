@@ -115,12 +115,12 @@ function readFbChar(vmInst, T, x, y, bgColor) {
   return gmap.get(rows.join(',')) || '?';
 }
 
-function readFbString(vmInst, T, x, y, len, bgColor, preserveCase = false) {
+function readFbString(vmInst, T, x, y, len, bgColor, uppercase = false) {
   let s = "";
   const step = T.T3_FONT_9X9 ? 9 : 8;
   for (let i = 0; i < len; i++) {
     const ch = readFbChar(vmInst, T, x + i * step, y, bgColor);
-    s += preserveCase ? ch : ch.toUpperCase();
+    s += uppercase ? ch.toUpperCase() : ch;
   }
   return s;
 }

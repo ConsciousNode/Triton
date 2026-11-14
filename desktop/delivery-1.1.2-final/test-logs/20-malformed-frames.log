@@ -1,0 +1,1 @@
+{"name":"20-malformed-frames","status":"PASS","validSent":16,"rxPkts":16,"badShortDriverSent":16,"badShortHwSent":16,"badLenSent":16,"badProtoPortSent":16,"dropPkts":48,"trapCount":0,"esr":0}

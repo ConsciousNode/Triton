@@ -1,11 +1,22 @@
-"use strict";
-const path = require("path");
-const { loadHtmlModule, readDiskFileString, readDiskFileTrytes, readFbString, makeMouseTracker } = require("./t3-common.js");
-const dealsRef = require(path.resolve(__dirname, "../../../shared/deals-ref.js"));
+'use strict';
+const path = require('path');
+const { loadHtmlModule, readDiskFileString, readDiskFileTrytes, readFbString, makeMouseTracker } = require('./t3-common.js');
+const dealsRef = require(path.resolve(__dirname, '../../../shared/deals-ref.js'));
 
-const RANKS = "A23456789TJQK", SUITS = "CDHS";
+const RANKS = 'A23456789TJQK', SUITS = 'CDHS';
 function parseMsDeal(seed) {
   return dealsRef.msFreeCell(seed).map(col => col.map(s => RANKS.indexOf(s[0]) * 4 + SUITS.indexOf(s[1])));
+}
+
+const EXPECTED_DEALCHK_LINES = [
+  'MS #1 first row: JD 2D 9H JC 5D 7H 7C 5H (matches the published deal)',
+  'MINSTD(48271) 10,000th value from seed 1: 399268537 (matches the published check value)',
+  'CNSW deal v1 seed 1222, first 8 cards: KD 5H JS QC 7H KS JH QH'
+];
+
+function verifyDealchkContent(str) {
+  if (typeof str !== 'string') return false;
+  return EXPECTED_DEALCHK_LINES.every(line => str.includes(line));
 }
 
 // Differential JS reference solver matching in-guest App 6 sol_freecell_solve
@@ -190,7 +201,7 @@ function solveFreeCellDifferentialRef(colsInput, freeInput, foundInput, nodeBudg
   const frames = [{ moves: genMoves(), idx: 0, moveApplied: null }];
   while (frames.length > 0) {
     if (found[0] === 13 && found[1] === 13 && found[2] === 13 && found[3] === 13) {
-      return { verdictCode: 1, verdict: "WINNABLE", nodes, budget: nodeBudget };
+      return { verdictCode: 1, verdict: 'WINNABLE', nodes, budget: nodeBudget };
     }
     const top = frames[frames.length - 1];
     if (top.idx >= top.moves.length || frames.length >= maxDepth) {
@@ -206,87 +217,138 @@ function solveFreeCellDifferentialRef(colsInput, freeInput, foundInput, nodeBudg
     nodes++;
     frames.push({ moves: genMoves(), idx: 0, moveApplied: m });
   }
-  return { verdictCode: budgetHit ? 0 : -1, verdict: budgetHit ? "UNKNOWN" : "UNWINNABLE", nodes, budget: nodeBudget };
+  return { verdictCode: budgetHit ? 0 : -1, verdict: budgetHit ? 'UNKNOWN' : 'UNWINNABLE', nodes, budget: nodeBudget };
 }
 
 function runTest() {
-  const { T } = loadHtmlModule("tritos-desktop.html");
-  const vm = T.TritonWASM.createSync({ archMode: "T3" });
+  const { T } = loadHtmlModule('tritos-desktop.html');
+  const vm = T.TritonWASM.createSync({ archMode: 'T3' });
   T.bootTritOSDesktop(vm, false);
   vm.run(300000);
   const mouse = makeMouseTracker(vm);
   mouse.click(440, 472, 350000);
 
-  // 1. In-guest DEALCHK verification
-  vm.pushKeyEvent("K".charCodeAt(0), 0);
+  // 1. In-guest DEALCHK verification (and positive control that bad DEALCHK fails!)
+  vm.pushKeyEvent('K'.charCodeAt(0), 0);
   vm.run(350000);
-  const dealchk = (readDiskFileString(vm, T, "DEALCHK") || "").trim();
+  const dealchk = (readDiskFileString(vm, T, 'DEALCHK') || '').trim();
+  const dealchkVerified = verifyDealchkContent(dealchk);
+  if (!dealchkVerified) {
+    throw new Error('DEALCHK verification failed: ' + JSON.stringify(dealchk));
+  }
+  const dealchkPositiveControlCaught = !verifyDealchkContent(dealchk.replace('JD 2D 9H JC 5D 7H 7C 5H', 'TH 5H KS TC 6S AC TS 6C'));
+  if (!dealchkPositiveControlCaught) {
+    throw new Error('DEALCHK positive control failed to catch wrong first row');
+  }
 
-  // 2. In-guest 500-move session + 500 undos in FreeCell mode
-  for (const c of "1F") vm.pushKeyEvent(c.charCodeAt(0), 0);
+  // 2. Verify Spider mode ('M') and FreeCell mode ('1F') switching and tryte-identical deal vs deals-ref.js
+  vm.pushKeyEvent('M'.charCodeAt(0), 0);
+  vm.run(350000);
+  const spToolbar = readFbString(vm, T, 23, 32, 24, -230);
+  if (!spToolbar.includes('[SPID]')) {
+    throw new Error('Spider mode toolbar failed to render: ' + spToolbar);
+  }
+
+  for (const c of '1F') vm.pushKeyEvent(c.charCodeAt(0), 0);
   vm.run(550000);
   const fcToolbar = readFbString(vm, T, 23, 32, 24, -230);
-  const initBoard = Array.from(readDiskFileTrytes(vm, T, "FCSOL").slice(6, 182));
+  const fcSolTrytes = readDiskFileTrytes(vm, T, 'FCSOL');
+  const initBoard = Array.from(fcSolTrytes.slice(6, 182));
+
+  // Verify FreeCell deal #1 in FCSOL matches dealsRef.msFreeCell(1) tryte-for-tryte
+  const refDeal1 = parseMsDeal(1);
+  let fcDeal1Diffs = 0;
+  for (let col = 0; col < 8; col++) {
+    const colLen = initBoard[8 + col];
+    if (colLen !== refDeal1[col].length) fcDeal1Diffs++;
+    for (let r = 0; r < refDeal1[col].length; r++) {
+      if (initBoard[16 + col * 20 + r] !== refDeal1[col][r]) fcDeal1Diffs++;
+    }
+  }
+  if (fcDeal1Diffs !== 0) {
+    throw new Error('FreeCell deal #1 mismatch vs deals-ref.js: diffs=' + fcDeal1Diffs);
+  }
+
+  // 3. In-guest 500-move session + 500 undos in FreeCell mode
   for (let b = 0; b < 100; b++) {
-    for (let i = 0; i < 5; i++) vm.pushKeyEvent("T".charCodeAt(0), 0);
+    for (let i = 0; i < 5; i++) vm.pushKeyEvent('T'.charCodeAt(0), 0);
     vm.run(15000);
   }
-  vm.pushKeyEvent("S".charCodeAt(0), 0);
+  vm.pushKeyEvent('S'.charCodeAt(0), 0);
   vm.run(180000);
-  const midFc = readDiskFileTrytes(vm, T, "FCSOL");
+  const midFc = readDiskFileTrytes(vm, T, 'FCSOL');
   const movesPlayed = midFc[5];
+  if (movesPlayed !== 500) {
+    throw new Error('Expected 500 moves recorded in guest undo stack, got ' + movesPlayed);
+  }
   for (let b = 0; b < 100; b++) {
-    for (let i = 0; i < 5; i++) vm.pushKeyEvent("U".charCodeAt(0), 0);
+    for (let i = 0; i < 5; i++) vm.pushKeyEvent('U'.charCodeAt(0), 0);
     vm.run(15000);
   }
-  vm.pushKeyEvent("S".charCodeAt(0), 0);
+  vm.pushKeyEvent('S'.charCodeAt(0), 0);
   vm.run(180000);
-  const afterUndo = readDiskFileTrytes(vm, T, "FCSOL");
+  const afterUndo = readDiskFileTrytes(vm, T, 'FCSOL');
   let undoDiffs = 0;
   for (let i = 0; i < 176; i++) if (afterUndo[6 + i] !== initBoard[i]) undoDiffs++;
+  if (afterUndo[5] !== 0 || undoDiffs !== 0) {
+    throw new Error(`500-move undo failed: undoSp=${afterUndo[5]} boardDiffs=${undoDiffs}`);
+  }
 
-  // 3. In-guest FreeCell solver differential verification on Deal #1, Deal #11982, and dead-end control
-  vm.pushKeyEvent("V".charCodeAt(0), 0);
+  // 4. In-guest FreeCell solver differential verification on Deal #1, Deal #11982, and dead-end control
+  vm.pushKeyEvent('V'.charCodeAt(0), 0);
   vm.run(2800000);
-  const sol1 = readDiskFileTrytes(vm, T, "FCSOL");
+  const sol1 = readDiskFileTrytes(vm, T, 'FCSOL');
   const ref1 = solveFreeCellDifferentialRef(parseMsDeal(1), [-1,-1,-1,-1], [0,0,0,0], 110, 105, 512);
   if (sol1[2] !== 1 || sol1[2] !== ref1.verdictCode || sol1[3] !== ref1.nodes) {
-    throw new Error("In-guest Deal #1 solver mismatch: guest=" + JSON.stringify([sol1[2], sol1[3]]) + " ref=" + JSON.stringify(ref1));
+    throw new Error('In-guest Deal #1 solver mismatch: guest=' + JSON.stringify([sol1[2], sol1[3]]) + ' ref=' + JSON.stringify(ref1));
   }
 
-  for (const c of "11982FV") vm.pushKeyEvent(c.charCodeAt(0), 0);
+  for (const c of '11982FV') vm.pushKeyEvent(c.charCodeAt(0), 0);
   vm.run(3200000);
-  const sol11982 = readDiskFileTrytes(vm, T, "FCSOL");
+  const sol11982 = readDiskFileTrytes(vm, T, 'FCSOL');
   const ref11982 = solveFreeCellDifferentialRef(parseMsDeal(11982), [-1,-1,-1,-1], [0,0,0,0], 110, 105, 512);
   if (sol11982[2] !== 0 || sol11982[2] !== ref11982.verdictCode || sol11982[3] !== ref11982.nodes) {
-    throw new Error("In-guest Deal #11982 solver mismatch: guest=" + JSON.stringify([sol11982[2], sol11982[3]]) + " ref=" + JSON.stringify(ref11982));
+    throw new Error('In-guest Deal #11982 solver mismatch: guest=' + JSON.stringify([sol11982[2], sol11982[3]]) + ' ref=' + JSON.stringify(ref11982));
   }
 
-  for (const c of "XV") vm.pushKeyEvent(c.charCodeAt(0), 0);
+  for (const c of 'XV') vm.pushKeyEvent(c.charCodeAt(0), 0);
   vm.run(500000);
-  const solDead = readDiskFileTrytes(vm, T, "FCSOL");
-  if (solDead[2] !== -1) throw new Error("In-guest dead-end control did not report UNWINNABLE (-1)");
+  const solDead = readDiskFileTrytes(vm, T, 'FCSOL');
+  if (solDead[2] !== -1) throw new Error('In-guest dead-end control did not report UNWINNABLE (-1)');
 
-  // 4. Known-answer control across Microsoft deals 1..200 at budget 110 (guest budget) and 10,000 (large host control)
+  // 5. Known-answer control across Microsoft deals 1..200 at guest budget (110) and large host budget (50,000)
   let w110 = 0, u110 = 0, un110 = 0;
+  let w50k = 0, u50k = 0, un50k = 0;
   for (let s = 1; s <= 200; s++) {
-    const r = solveFreeCellDifferentialRef(parseMsDeal(s), [-1,-1,-1,-1], [0,0,0,0], 110, 105, 512);
-    if (r.verdictCode === 1) w110++;
-    else if (r.verdictCode === 0) u110++;
+    const deal = parseMsDeal(s);
+    const rGuest = solveFreeCellDifferentialRef(deal, [-1,-1,-1,-1], [0,0,0,0], 110, 105, 512);
+    if (rGuest.verdictCode === 1) w110++;
+    else if (rGuest.verdictCode === 0) u110++;
     else un110++;
+
+    const rHost = solveFreeCellDifferentialRef(deal, [-1,-1,-1,-1], [0,0,0,0], 50000, 105, 131072);
+    if (rHost.verdictCode === 1) w50k++;
+    else if (rHost.verdictCode === 0) u50k++;
+    else un50k++;
   }
-  if (un110 !== 0) throw new Error("Solver reported UNWINNABLE on solvable deal in 1..200: " + un110);
+  if (un110 !== 0 || un50k !== 0) {
+    throw new Error(`Solver reported UNWINNABLE on solvable deal in 1..200: un110=${un110} un50k=${un50k}`);
+  }
 
   return {
-    name: "35-solitaire-suite-1.1.2",
-    status: "PASS",
-    dealchkVerified: dealchk.includes("JD 2D 9H JC 5D 7H 7C 5H") && dealchk.includes("399268537") && dealchk.includes("KD 5H JS QC 7H KS JH QH"),
+    name: '35-solitaire-suite-1.1.2',
+    status: 'PASS',
+    dealchkVerified,
+    dealchkPositiveControlCaught,
+    fcDeal1Diffs,
     fcToolbar,
+    spToolbar,
     inGuestUndo500: { movesPlayed, undoSpAfter500Undos: afterUndo[5], boardDiffs: undoDiffs },
-    inGuestDeal1: { verdict: "WINNABLE", nodes: sol1[3], budget: sol1[4], matchesRef: true },
-    inGuestDeal11982: { verdict: "UNKNOWN", nodes: sol11982[3], budget: sol11982[4], matchesRef: true },
-    inGuestDeadEndControl: { verdict: "UNWINNABLE", nodes: solDead[3], budget: solDead[4] },
-    deals1to200AtBudget110: { budget: 110, winnable: w110, unknown: u110, unwinnable: un110 }
+    inGuestDeal1: { verdict: 'WINNABLE', nodes: sol1[3], budget: sol1[4], matchesRef: true },
+    inGuestDeal11982: { verdict: 'UNKNOWN', nodes: sol11982[3], budget: sol11982[4], matchesRef: true },
+    inGuestDeadEndControl: { verdict: 'UNWINNABLE', nodes: solDead[3], budget: solDead[4] },
+    deals1to200AtBudget110: { budget: 110, winnable: w110, unknown: u110, unwinnable: un110 },
+    deals1to200AtBudget50000: { budget: 50000, winnable: w50k, unknown: u50k, unwinnable: un50k }
   };
 }
 if (require.main === module) console.log(JSON.stringify(runTest()));

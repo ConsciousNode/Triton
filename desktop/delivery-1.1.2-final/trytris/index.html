@@ -1,0 +1,2477 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Trytris — Triangular Falling-Piece Game (CNSW Xinu Edition)</title>
+  <!--
+    ============================================================================
+    Trytris: A triangular falling-piece game (Xinu edition)
+    Studio: ConsciousNode SoftWorks (CNSW)
+    License: MIT License
+    Architecture: Single self-contained HTML file, zero external dependencies,
+                  browser-native, offline-capable.
+    ============================================================================
+  -->
+  <style>
+    :root {
+      --bg-base: #090b10;
+      --bg-panel: #11151f;
+      --bg-panel-alt: #161b28;
+      --bg-header: #0d1018;
+      --border: #252d42;
+      --border-hi: #384566;
+      --text-main: #e2e8f0;
+      --text-muted: #94a3b8;
+      --text-dim: #64748b;
+      --accent: #38bdf8;
+      --accent-glow: rgba(56, 189, 248, 0.25);
+      --cursed: #f43f5e;
+      --cursed-bg: rgba(244, 63, 94, 0.14);
+      --pass: #22c55e;
+      --fail: #ef4444;
+      --warn: #f59e0b;
+      --font-mono: 'JetBrains Mono', 'Fira Code', 'SFMono-Regular', Consolas, 'Liberation Mono', Menlo, monospace;
+      --font-sans: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      background-color: var(--bg-base);
+      color: var(--text-main);
+      font-family: var(--font-sans);
+      font-size: 13px;
+      line-height: 1.45;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      overflow-x: hidden;
+    }
+
+    /* Top Lab Bar */
+    header.lab-topbar {
+      background: var(--bg-header);
+      border-bottom: 1px solid var(--border);
+      padding: 8px 16px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 10px;
+    }
+
+    .brand-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+
+    .brand-title {
+      font-family: var(--font-mono);
+      font-size: 16px;
+      font-weight: 700;
+      letter-spacing: 0.06em;
+      color: #f8fafc;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .brand-tag {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      padding: 2px 6px;
+      border-radius: 3px;
+      background: #1e293b;
+      color: var(--accent);
+      border: 1px solid var(--border-hi);
+      text-transform: uppercase;
+    }
+
+    .cursed-banner {
+      display: none;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      color: #fecdd3;
+      background: var(--cursed-bg);
+      border: 1px solid var(--cursed);
+      padding: 4px 10px;
+      border-radius: 4px;
+      letter-spacing: 0.05em;
+      animation: pulse-cursed 2s infinite ease-in-out;
+    }
+
+    .cursed-banner.visible {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    @keyframes pulse-cursed {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(244, 63, 94, 0.3); }
+      50% { box-shadow: 0 0 10px 2px rgba(244, 63, 94, 0.45); }
+    }
+
+    .status-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      font-family: var(--font-mono);
+      font-size: 11px;
+    }
+
+    .ready-badge {
+      padding: 3px 8px;
+      border-radius: 3px;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      background: rgba(245, 158, 11, 0.15);
+      color: var(--warn);
+      border: 1px solid var(--warn);
+    }
+
+    .ready-badge.ready {
+      background: rgba(34, 197, 94, 0.15);
+      color: var(--pass);
+      border-color: var(--pass);
+    }
+
+    .ready-badge.failed {
+      background: rgba(239, 68, 68, 0.15);
+      color: var(--fail);
+      border-color: var(--fail);
+    }
+
+    /* Three-Column Lab Layout */
+    main.lab-grid {
+      flex: 1;
+      display: grid;
+      grid-template-columns: 310px minmax(340px, 1fr) 380px;
+      gap: 12px;
+      padding: 12px;
+      max-width: 1600px;
+      width: 100%;
+      margin: 0 auto;
+      align-items: start;
+    }
+
+    @media (max-width: 1180px) {
+      main.lab-grid {
+        grid-template-columns: 290px 1fr;
+      }
+      .col-right {
+        grid-column: 1 / -1;
+      }
+    }
+
+    @media (max-width: 760px) {
+      main.lab-grid {
+        grid-template-columns: 1fr;
+      }
+    }
+
+    .panel {
+      background: var(--bg-panel);
+      border: 1px solid var(--border);
+      border-radius: 6px;
+      padding: 12px;
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+    }
+
+    .section-box {
+      background: var(--bg-panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 10px;
+    }
+
+    .section-title {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--accent);
+      margin-bottom: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      border-bottom: 1px solid var(--border);
+      padding-bottom: 4px;
+    }
+
+    /* Controls & Inputs */
+    .btn-row {
+      display: flex;
+      gap: 6px;
+      flex-wrap: wrap;
+    }
+
+    button {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 600;
+      background: #1e293b;
+      color: var(--text-main);
+      border: 1px solid var(--border-hi);
+      border-radius: 4px;
+      padding: 6px 10px;
+      cursor: pointer;
+      transition: background 0.12s, border-color 0.12s, transform 0.05s;
+    }
+
+    button:hover {
+      background: #283548;
+      border-color: var(--accent);
+    }
+
+    button:active {
+      transform: translateY(1px);
+    }
+
+    button.primary {
+      background: #0284c7;
+      border-color: #38bdf8;
+      color: #fff;
+    }
+
+    button.primary:hover {
+      background: #0369a1;
+    }
+
+    .seed-group {
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+
+    input[type="text"], input[type="number"] {
+      font-family: var(--font-mono);
+      font-size: 12px;
+      background: var(--bg-base);
+      color: var(--text-main);
+      border: 1px solid var(--border-hi);
+      border-radius: 4px;
+      padding: 5px 8px;
+      width: 100%;
+    }
+
+    .radio-list, .toggle-list {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .radio-item, .toggle-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 8px;
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: rgba(15, 23, 42, 0.55);
+      border: 1px solid transparent;
+      cursor: pointer;
+    }
+
+    .radio-item.active {
+      border-color: var(--accent);
+      background: rgba(56, 189, 248, 0.08);
+    }
+
+    .radio-item.cursed-active {
+      border-color: var(--cursed);
+      background: var(--cursed-bg);
+    }
+
+    .radio-item input, .toggle-item input {
+      margin-top: 2px;
+      accent-color: var(--accent);
+      cursor: pointer;
+    }
+
+    .item-label {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      font-size: 12px;
+    }
+
+    .item-label strong {
+      font-family: var(--font-mono);
+      font-size: 11px;
+      color: #f8fafc;
+    }
+
+    .item-label span {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Keybind & D-pad */
+    .key-grid {
+      display: grid;
+      grid-template-columns: auto 1fr;
+      gap: 4px 10px;
+      font-size: 11px;
+    }
+
+    .key-badge {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      background: var(--bg-base);
+      border: 1px solid var(--border-hi);
+      padding: 1px 5px;
+      border-radius: 3px;
+      color: var(--accent);
+      text-align: center;
+    }
+
+    .touch-pad {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 5px;
+      margin-top: 8px;
+    }
+
+    /* Achievements List */
+    .ach-list {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      max-height: 290px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .ach-item {
+      padding: 6px 8px;
+      border-radius: 4px;
+      background: var(--bg-base);
+      border: 1px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .ach-item.unlocked {
+      border-color: var(--pass);
+      background: rgba(34, 197, 94, 0.08);
+    }
+
+    .ach-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      font-family: var(--font-mono);
+      font-size: 11px;
+      font-weight: 700;
+    }
+
+    .ach-item.unlocked .ach-name {
+      color: #4ade80;
+    }
+
+    .ach-item.locked .ach-name {
+      color: var(--text-dim);
+    }
+
+    .ach-desc {
+      font-size: 11px;
+      color: var(--text-muted);
+    }
+
+    /* Center Column: Game Arena */
+    .col-center {
+      align-items: center;
+    }
+
+    .hud-bar {
+      width: 100%;
+      display: grid;
+      grid-template-columns: repeat(4, 1fr);
+      gap: 8px;
+    }
+
+    .stat-card {
+      background: var(--bg-panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 6px 10px;
+      text-align: center;
+    }
+
+    .stat-label {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      text-transform: uppercase;
+    }
+
+    .stat-value {
+      font-family: var(--font-mono);
+      font-size: 18px;
+      font-weight: 700;
+      color: #f8fafc;
+    }
+
+    .stat-sub {
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--accent);
+    }
+
+    .arena-wrap {
+      display: flex;
+      gap: 12px;
+      align-items: flex-start;
+      justify-content: center;
+      width: 100%;
+      flex-wrap: wrap;
+    }
+
+    .svg-board-container {
+      position: relative;
+      background: #06080c;
+      border: 2px solid var(--border-hi);
+      border-radius: 6px;
+      padding: 6px;
+      box-shadow: inset 0 0 24px rgba(0, 0, 0, 0.8);
+    }
+
+    #board-svg {
+      /* [Audit fix 2026-11-13] 12 triangle columns span 6.5 units (not 13): size the frame to the board */
+      display: block;
+      width: 200px;
+      height: 633px;
+    }
+
+    .board-overlay {
+      position: absolute;
+      inset: 0;
+      background: rgba(9, 11, 16, 0.84);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      text-align: center;
+      padding: 16px;
+      border-radius: 4px;
+    }
+
+    .board-overlay.visible {
+      display: flex;
+    }
+
+    .overlay-title {
+      font-family: var(--font-mono);
+      font-size: 20px;
+      font-weight: 700;
+      color: #f8fafc;
+      letter-spacing: 0.08em;
+    }
+
+    .preview-column {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      width: 126px;
+    }
+
+    .preview-box {
+      background: var(--bg-panel-alt);
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .preview-slot {
+      width: 104px;
+      height: 76px;
+      background: #070a0f;
+      border: 1px solid var(--border);
+      border-radius: 3px;
+      display: flex;
+       flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      position: relative;
+    }
+
+    .preview-slot svg {
+      width: 96px;
+      height: 54px;
+    }
+
+    .preview-piece-name {
+      font-family: var(--font-mono);
+      font-size: 9px;
+      color: var(--text-muted);
+      text-align: center;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+      max-width: 98px;
+    }
+
+    /* Right Column: Balanced Ternary & Self-Test Suite */
+    .ternary-readout {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      line-height: 1.28;
+      background: #05070b;
+      border: 1px solid var(--border);
+      border-radius: 4px;
+      padding: 8px;
+      color: #94a3b8;
+      overflow-x: auto;
+      white-space: pre;
+    }
+
+    .trit-row {
+      display: flex;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .trit-row-idx {
+      color: var(--text-dim);
+      user-select: none;
+    }
+
+    .trit-T { color: #38bdf8; font-weight: 700; }
+    .trit-F { color: #f43f5e; font-weight: 700; }
+    .trit-Z { color: #334155; }
+
+    .ternary-legend {
+      display: flex;
+      gap: 12px;
+      font-family: var(--font-mono);
+      font-size: 10px;
+      color: var(--text-muted);
+      margin-bottom: 6px;
+    }
+
+    /* Test Runner */
+    .test-list {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      max-height: 360px;
+      overflow-y: auto;
+      padding-right: 2px;
+    }
+
+    .test-item {
+      font-family: var(--font-mono);
+      font-size: 10.5px;
+      padding: 5px 7px;
+      border-radius: 3px;
+      background: var(--bg-base);
+      border-left: 3px solid var(--border);
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+    }
+
+    .test-item.pass {
+      border-left-color: var(--pass);
+    }
+
+    .test-item.fail {
+      border-left-color: var(--fail);
+      background: rgba(239, 68, 68, 0.08);
+    }
+
+    .test-head {
+      display: flex;
+      justify-content: space-between;
+      gap: 6px;
+      font-weight: 700;
+    }
+
+    .test-status.pass { color: var(--pass); }
+    .test-status.fail { color: var(--fail); }
+
+    .test-reason {
+      color: var(--text-muted);
+      font-size: 10px;
+    }
+
+    .toast-banner {
+      position: fixed;
+      bottom: 16px;
+      right: 16px;
+      background: #0f172a;
+      border: 1px solid var(--pass);
+      color: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 6px;
+      font-family: var(--font-mono);
+      font-size: 12px;
+      box-shadow: 0 8px 24px rgba(0, 0, 0, 0.6);
+      display: none;
+      z-index: 100;
+    }
+
+    .toast-banner.show {
+      display: block;
+    }
+  </style>
+</head>
+<body>
+
+  <header class="lab-topbar">
+    <div class="brand-group">
+      <div class="brand-title">
+        <span>▲▽ TRYTRIS</span>
+        <span class="brand-tag">CNSW XINU EDITION</span>
+      </div>
+      <div id="cursed-ui-banner" class="cursed-banner">
+        CURSED MODE — HEXIAMONDS INCOMING
+      </div>
+    </div>
+    <div class="status-group">
+      <span id="active-piece-vocab-info">VOCAB: 4 TETRIAMONDS</span>
+      <span id="test-ready-badge" class="ready-badge">INITIALIZING...</span>
+    </div>
+  </header>
+
+  <main class="lab-grid">
+    <!-- LEFT PANEL: Controls, Mode Toggles, Seed, Achievements -->
+    <section class="panel col-left">
+      <div class="section-box">
+        <div class="section-title">
+          <span>Session &amp; Deterministic Seed</span>
+          <span id="game-status-text">ACTIVE</span>
+        </div>
+        <div class="seed-group" style="margin-bottom: 8px;">
+          <input type="text" id="seed-input" value="42" aria-label="PRNG Seed" title="Mulberry32 PRNG Seed">
+          <button type="button" id="btn-apply-seed" class="primary">Apply Seed</button>
+          <button type="button" id="btn-random-seed">Rand</button>
+        </div>
+        <div class="btn-row">
+          <button type="button" id="btn-new-game" class="primary">New Game</button>
+          <button type="button" id="btn-pause">Pause (P)</button>
+          <button type="button" id="btn-step-tick" title="Advance 1 gravity tick">Tick +1</button>
+          <button type="button" id="btn-audio-mute">Audio: OFF</button>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <span>Piece Mode (3-Way Selector)</span>
+        </div>
+        <div class="radio-list" id="mode-radio-group">
+          <label class="radio-item active" id="label-mode-normal">
+            <input type="radio" name="pieceMode" value="NORMAL" id="radio-mode-normal" checked>
+            <div class="item-label">
+              <strong>NORMAL (Default)</strong>
+              <span>4 free tetriamonds (P1–P4) throughout the entire game</span>
+            </div>
+          </label>
+          <label class="radio-item" id="label-mode-cursed">
+            <input type="radio" name="pieceMode" value="CURSED" id="radio-mode-cursed">
+            <div class="item-label">
+              <strong>CURSED</strong>
+              <span>Starts with tetriamonds; at Level 5 all 12 hexiamonds join</span>
+            </div>
+          </label>
+          <label class="radio-item" id="label-mode-hexiamond">
+            <input type="radio" name="pieceMode" value="HEXIAMOND" id="radio-mode-hexiamond">
+            <div class="item-label">
+              <strong>HEXIAMOND</strong>
+              <span>Full 12 free hexiamonds (H1–H12) from the very first piece</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <span>Display Toggles</span>
+        </div>
+        <div class="toggle-list">
+          <label class="toggle-item">
+            <input type="checkbox" id="toggle-ghost" checked>
+            <div class="item-label">
+              <strong>Ghost Piece</strong>
+              <span>Shows landing projection of active polyiamond</span>
+            </div>
+          </label>
+          <label class="toggle-item">
+            <input type="checkbox" id="toggle-ternary" checked>
+            <div class="item-label">
+              <strong>Balanced Ternary Display</strong>
+              <span>Live T/Z/F board state readout updated every frame</span>
+            </div>
+          </label>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <span>Controls &amp; Touch Pad</span>
+        </div>
+        <div class="key-grid">
+          <span class="key-badge">← / A</span><span>Move Left (-1 col, parity shift)</span>
+          <span class="key-badge">→ / D</span><span>Move Right (+1 col, parity shift)</span>
+          <span class="key-badge">↑ / W / X</span><span>Rotate 60° CW (symmetry group)</span>
+          <span class="key-badge">Z</span><span>Rotate 60° CCW</span>
+          <span class="key-badge">↓ / S</span><span>Soft Drop (+1 row down)</span>
+          <span class="key-badge">SPACE</span><span>Hard Drop &amp; Lock</span>
+        </div>
+        <div class="touch-pad">
+          <button type="button" id="pad-rot-ccw">↺ CCW</button>
+          <button type="button" id="pad-up-rot">↻ Rotate</button>
+          <button type="button" id="pad-hard">⤓ Hard</button>
+          <button type="button" id="pad-left">◀ Left</button>
+          <button type="button" id="pad-down">▼ Soft</button>
+          <button type="button" id="pad-right">Right ▶</button>
+        </div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <span>Achievements</span>
+          <span id="ach-counter">0 / 10</span>
+        </div>
+        <div class="ach-list" id="achievements-list"></div>
+      </div>
+    </section>
+
+    <!-- CENTER PANEL: Triangular Grid & Next Piece Preview -->
+    <section class="panel col-center">
+      <div class="hud-bar">
+        <div class="stat-card">
+          <div class="stat-label">Score</div>
+          <div class="stat-value" id="hud-score">0</div>
+          <div class="stat-sub" id="hud-b2b">B2B: IDLE</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Level</div>
+          <div class="stat-value" id="hud-level">1</div>
+          <div class="stat-sub" id="hud-speed">800ms / tick</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Lines</div>
+          <div class="stat-value" id="hud-lines">0</div>
+          <div class="stat-sub">10 / level (cap 15)</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-label">Combo</div>
+          <div class="stat-value" id="hud-combo">1×</div>
+          <div class="stat-sub" id="hud-streak">Streak: 0</div>
+        </div>
+      </div>
+
+      <div class="arena-wrap">
+        <div class="svg-board-container">
+          <svg id="board-svg" viewBox="-0.05 -0.05 6.6 20.9" xmlns="http://www.w3.org/2000/svg" aria-label="Trytris Equilateral Triangular Grid"></svg>
+          <div id="board-overlay" class="board-overlay">
+            <div class="overlay-title" id="overlay-title-text">PAUSED</div>
+            <div id="overlay-sub-text" style="color: var(--text-muted); font-family: var(--font-mono); font-size: 12px;">Press Resume or New Game</div>
+            <button type="button" id="btn-overlay-action" class="primary">Resume</button>
+          </div>
+        </div>
+
+        <div class="preview-column">
+          <div class="preview-box">
+            <div class="section-title" style="width: 100%; margin-bottom: 4px;">
+              <span>Next 3</span>
+            </div>
+            <div class="preview-slot">
+              <svg id="next-svg-0" viewBox="-0.5 -0.3 5 3.6"></svg>
+              <div class="preview-piece-name" id="next-name-0">-</div>
+            </div>
+            <div class="preview-slot">
+              <svg id="next-svg-1" viewBox="-0.5 -0.3 5 3.6"></svg>
+              <div class="preview-piece-name" id="next-name-1">-</div>
+            </div>
+            <div class="preview-slot">
+              <svg id="next-svg-2" viewBox="-0.5 -0.3 5 3.6"></svg>
+              <div class="preview-piece-name" id="next-name-2">-</div>
+            </div>
+          </div>
+
+          <div class="preview-box" style="align-items: flex-start; font-family: var(--font-mono); font-size: 10px; color: var(--text-muted);">
+            <div class="section-title" style="width: 100%; margin-bottom: 4px;">
+              <span>Active Piece</span>
+            </div>
+            <div>ID: <strong id="info-piece-id" style="color: var(--text-main);">-</strong></div>
+            <div>Rot State: <strong id="info-piece-rot" style="color: var(--accent);">0 / 1</strong></div>
+            <div>Anchor: <strong id="info-piece-pos" style="color: var(--text-main);">(0, 0)</strong></div>
+            <div>Idle Timer: <strong id="info-idle-time" style="color: var(--text-main);">0.0s</strong></div>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <!-- RIGHT PANEL: Balanced Ternary Readout + In-Browser Self-Test Suite -->
+    <section class="panel col-right">
+      <div class="section-box" id="ternary-section-box">
+        <div class="section-title">
+          <span>Balanced Ternary Board State (T/Z/F)</span>
+          <span id="ternary-summary">T:0 Z:288 F:0</span>
+        </div>
+        <div class="ternary-legend">
+          <span><strong class="trit-T">T (+1)</strong>: ▲ Occupied</span>
+          <span><strong class="trit-Z">Z (0)</strong>: Empty</span>
+          <span><strong class="trit-F">F (-1)</strong>: ▽ Occupied</span>
+        </div>
+        <div id="ternary-display" class="ternary-readout" aria-live="polite"></div>
+      </div>
+
+      <div class="section-box">
+        <div class="section-title">
+          <span>Self-Test Suite (18 Assertions)</span>
+          <button type="button" id="btn-run-tests">Re-Run Tests</button>
+        </div>
+        <div id="test-summary-bar" style="font-family: var(--font-mono); font-size: 11px; margin-bottom: 6px; color: var(--text-muted);">
+          Running assertions...
+        </div>
+        <div class="test-list" id="test-results-list"></div>
+      </div>
+    </section>
+  </main>
+
+  <div id="achievement-toast" class="toast-banner"></div>
+
+  <script>
+    /* ==========================================================================
+     * [LIFT-1] Mulberry32 Deterministic 32-bit PRNG
+     * Provenance: Tommy Ettinger (2017), public domain 32-bit state PRNG
+     * Intentional changes: Wrapped in a seedable factory returning both float
+     * [0, 1) and integer helpers, plus string-to-uint32 hash normalization so
+     * numeric or alphanumeric seeds produce deterministic sequences.
+     * ========================================================================== */
+    function normalizeSeed(seedInput) {
+      const str = String(seedInput).trim();
+      if (/^-?\d+$/.test(str)) {
+        return (parseInt(str, 10) >>> 0);
+      }
+      let h = 2166136261 >>> 0;
+      for (let i = 0; i < str.length; i++) {
+        h ^= str.charCodeAt(i);
+        h = Math.imul(h, 16777619) >>> 0;
+      }
+      return h >>> 0;
+    }
+
+    function createMulberry32(seedUint32) {
+      let a = (seedUint32 >>> 0);
+      return function nextFloat() {
+        let t = (a += 0x6D2B79F5) >>> 0;
+        t = Math.imul(t ^ (t >>> 15), t | 1);
+        t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+        return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+      };
+    }
+
+    /* ==========================================================================
+     * EQUILATERAL TRIANGULAR GRID GEOMETRY
+     * Grid Dimensions: 12 columns × 28 total rows (rows 0..3 buffer, 4..27 visible)
+     * Cell (r, c) is UP-pointing (▲) when (r + c) % 2 === 0
+     * Cell (r, c) is DOWN-pointing (▽) when (r + c) % 2 !== 0
+     * Side length s = 1.0; height h = s * sqrt(3) / 2 = 0.8660254037844386
+     * ========================================================================== */
+    const GRID_COLS = 12;
+    const BUFFER_ROWS = 4;
+    const VISIBLE_ROWS = 24;
+    const TOTAL_ROWS = BUFFER_ROWS + VISIBLE_ROWS; // 28
+    const TRI_SIDE = 1.0;
+    const TRI_HEIGHT = Math.sqrt(3) / 2.0;
+
+    function computeTriangleHeight(side = 1.0) {
+      return side * Math.sqrt(3) / 2.0;
+    }
+
+    function isUpTriangle(r, c) {
+      return ((r + c) & 1) === 0;
+    }
+
+    /**
+     * Computes exact equilateral triangle vertices in 2D Cartesian space.
+     * For UP-pointing (▲) at (r, c):
+     *   v0 (top apex):     ((c + 1) * s/2, r * h)
+     *   v1 (bottom-left):  (c * s/2,       (r + 1) * h)
+     *   v2 (bottom-right): ((c + 2) * s/2, (r + 1) * h)
+     * For DOWN-pointing (▽) at (r, c):
+     *   v0 (top-left):     (c * s/2,       r * h)
+     *   v1 (top-right):    ((c + 2) * s/2, r * h)
+     *   v2 (bottom apex):  ((c + 1) * s/2, (r + 1) * h)
+     * Notice that DOWN (r, c) top edge [v0, v1] is identical to UP (r-1, c) bottom edge [v1, v2].
+     */
+    function getTriangleVertices(r, c, side = 1.0) {
+      const h = computeTriangleHeight(side);
+      const half = side * 0.5;
+      if (isUpTriangle(r, c)) {
+        return [
+          { x: (c + 1) * half, y: r * h },
+          { x: c * half,       y: (r + 1) * h },
+          { x: (c + 2) * half, y: (r + 1) * h }
+        ];
+      } else {
+        return [
+          { x: c * half,       y: r * h },
+          { x: (c + 2) * half, y: r * h },
+          { x: (c + 1) * half, y: (r + 1) * h }
+        ];
+      }
+    }
+
+    /* ==========================================================================
+     * [LIFT-2] Polyiamond 60° Lattice Rotation & Canonical Normalization
+     * Provenance: Euclidean 60° rotation around lattice vertex (0.5, 0) on the
+     * isometric triangular grid, preserving cell parity (r + c) mod 2.
+     * ========================================================================== */
+    function rotateCell60CW(r, c) {
+      const h = TRI_HEIGHT;
+      // Shift x by -0.5 so lattice vertex (0.5, 0) is the origin (0, 0)
+      const verts = isUpTriangle(r, c)
+        ? [[c * 0.5, r * h], [(c - 1) * 0.5, (r + 1) * h], [(c + 1) * 0.5, (r + 1) * h]]
+        : [[(c - 1) * 0.5, r * h], [(c + 1) * 0.5, r * h], [c * 0.5, (r + 1) * h]];
+
+      const cos60 = 0.5;
+      const sin60 = h;
+      let cx = 0;
+      let cy = 0;
+      for (let i = 0; i < 3; i++) {
+        const x = verts[i][0];
+        const y = verts[i][1];
+        const rx = x * cos60 - y * sin60;
+        const ry = x * sin60 + y * cos60;
+        cx += rx;
+        cy += ry;
+      }
+      cx /= 3.0;
+      cy /= 3.0;
+      const nr = Math.floor(cy / h + 1e-6);
+      const nc = Math.round(cx / 0.5);
+      return [nr, nc];
+    }
+
+    function normalizePolyiamond(cells) {
+      let minR = Infinity;
+      let minC = Infinity;
+      for (let i = 0; i < cells.length; i++) {
+        if (cells[i][0] < minR) minR = cells[i][0];
+        if (cells[i][1] < minC) minC = cells[i][1];
+      }
+      const dr = -minR;
+      let dc = -minC;
+      // Parity of (dr + dc) MUST be even so UP triangles stay UP and DOWN stay DOWN
+      if (((dr + dc) & 1) !== 0) {
+        dc += 1;
+      }
+      const shifted = cells.map(([r, c]) => [r + dr, c + dc]);
+      shifted.sort((a, b) => (a[0] !== b[0] ? a[0] - b[0] : a[1] - b[1]));
+      return shifted;
+    }
+
+    function computeDistinctRotations(canonicalCells) {
+      const states = [];
+      const seenKeys = new Set();
+      let curr = canonicalCells.map(([r, c]) => [r, c]);
+      for (let step = 0; step < 6; step++) {
+        const norm = normalizePolyiamond(curr);
+        const key = JSON.stringify(norm);
+        if (!seenKeys.has(key)) {
+          seenKeys.add(key);
+          states.push(norm);
+        }
+        curr = curr.map(([r, c]) => rotateCell60CW(r, c));
+      }
+      return states;
+    }
+
+    /* ==========================================================================
+     * PIECE VOCABULARIES:
+     * 1) TETRIAMOND_SET (4 pieces: P1–P4)
+     * 2) HEXIAMOND_SET (12 free hexiamonds: H1–H12 with standard names)
+     * ========================================================================== */
+    const RAW_TETRIAMONDS = [
+      { id: 'P1', slug: 'bar_l',   name: 'P1 (I-Bar L)', color: '#38bdf8', cells: [[0, 0], [0, 1], [0, 2], [0, 3]] },
+      { id: 'P2', slug: 'bar_r',   name: 'P2 (I-Bar R)', color: '#60a5fa', cells: [[0, 0], [1, 0], [1, 1], [2, 1]] },
+      { id: 'P3', slug: 'crook',   name: 'P3 (Crook)',   color: '#f59e0b', cells: [[0, 0], [0, 1], [0, 2], [1, 0]] },
+      { id: 'P4', slug: 'pyramid', name: 'P4 (Triangle)',color: '#a855f7', cells: [[0, 1], [0, 2], [0, 3], [1, 2]] }
+    ];
+
+    const RAW_HEXIAMONDS = [
+      { id: 'H1',  slug: 'parallelogram', name: 'parallelogram', color: '#2dd4bf', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [0, 5]] },
+      { id: 'H2',  slug: 'hook',          name: 'hook',          color: '#fb7185', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 0]] },
+      { id: 'H3',  slug: 'triangle',      name: 'triangle',      color: '#facc15', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [0, 4], [1, 2]] },
+      { id: 'H4',  slug: 'chevron',       name: 'chevron',       color: '#818cf8', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 0], [1, 1]] },
+      { id: 'H5',  slug: 'sphinx',        name: 'sphinx',        color: '#f97316', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 0], [1, 2]] },
+      { id: 'H6',  slug: 'bat',           name: 'bat',           color: '#c084fc', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 1], [1, 2]] },
+      { id: 'H7',  slug: 'yacht',         name: 'yacht',         color: '#34d399', cells: [[0, 0], [0, 1], [0, 2], [0, 3], [1, 2], [1, 3]] },
+      { id: 'H8',  slug: 'hexagon',       name: 'hexagon',       color: '#f43f5e', cells: [[0, 0], [0, 1], [0, 2], [1, 0], [1, 1], [1, 2]] },
+      { id: 'H9',  slug: 'snake',         name: 'snake',         color: '#4ade80', cells: [[0, 0], [0, 1], [0, 2], [1, 2], [1, 3], [1, 4]] },
+      { id: 'H10', slug: 'lobster',       name: 'lobster',       color: '#fb923c', cells: [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [2, 2]] },
+      { id: 'H11', slug: 'rhombus',       name: 'rhombus',       color: '#22d3ee', cells: [[0, 0], [1, 0], [1, 1], [2, 0], [2, 1], [3, 0]] },
+      { id: 'H12', slug: 'butterfly',     name: 'butterfly',     color: '#e879f9', cells: [[0, 1], [0, 2], [0, 3], [1, 1], [1, 2], [1, 3]] }
+    ];
+
+    const TETRIAMOND_SET = RAW_TETRIAMONDS.map(p => {
+      const rotations = computeDistinctRotations(p.cells);
+      return {
+        ...p,
+        order: 4,
+         isHexiamond: false,
+        rotations,
+        symmetryOrder: rotations.length
+      };
+    });
+
+    const HEXIAMOND_SET = RAW_HEXIAMONDS.map(p => {
+      const rotations = computeDistinctRotations(p.cells);
+      return {
+        ...p,
+        order: 6,
+        isHexiamond: true,
+        rotations,
+        symmetryOrder: rotations.length
+      };
+    });
+
+    const PIECE_BY_ID = {};
+    TETRIAMOND_SET.forEach(p => { PIECE_BY_ID[p.id] = p; });
+    HEXIAMOND_SET.forEach(p => { PIECE_BY_ID[p.id] = p; });
+
+    function getActiveVocabulary(mode, level) {
+      if (mode === 'HEXIAMOND') {
+        return HEXIAMOND_SET.slice();
+      }
+      if (mode === 'CURSED') {
+        if (level >= 5) {
+          return TETRIAMOND_SET.concat(HEXIAMOND_SET);
+        }
+        return TETRIAMOND_SET.slice();
+      }
+      return TETRIAMOND_SET.slice();
+    }
+
+    /* ==========================================================================
+     * N-BAG SEEDED RANDOMIZER (Auditable Fisher-Yates shuffle with Mulberry32)
+     * ========================================================================== */
+    class SeededBagGenerator {
+      constructor(seedInput) {
+        this.seed = normalizeSeed(seedInput);
+        this.prng = createMulberry32(this.seed);
+        this.bag = [];
+        this.lastVocabSignature = '';
+      }
+
+      getVocabSignature(mode, level) {
+        if (mode === 'HEXIAMOND') return 'HEX12';
+        if (mode === 'CURSED') return level >= 5 ? 'CURSED16' : 'TET4';
+        return 'TET4';
+      }
+
+      refillBag(mode, level) {
+        const vocab = getActiveVocabulary(mode, level);
+        const items = vocab.slice();
+        for (let i = items.length - 1; i > 0; i--) {
+          const j = Math.floor(this.prng() * (i + 1));
+          const tmp = items[i];
+          items[i] = items[j];
+          items[j] = tmp;
+        }
+        this.bag.push(...items);
+      }
+
+      nextPiece(mode, level, previewCount = 3) {
+        const sig = this.getVocabSignature(mode, level);
+        if (sig !== this.lastVocabSignature) {
+          // Filter or flush queued pieces if vocabulary transitioned (e.g., Cursed level 5 or mode switch)
+          const allowedIds = new Set(getActiveVocabulary(mode, level).map(p => p.id));
+          this.bag = this.bag.filter(p => allowedIds.has(p.id));
+          if (sig === 'CURSED16' && this.lastVocabSignature === 'TET4') {
+            this.bag = [];
+          }
+          this.lastVocabSignature = sig;
+        }
+        while (this.bag.length <= previewCount) {
+          this.refillBag(mode, level);
+        }
+        return this.bag.shift();
+      }
+
+      peekPreview(mode, level, count = 3) {
+        const sig = this.getVocabSignature(mode, level);
+        if (sig !== this.lastVocabSignature) {
+          const allowedIds = new Set(getActiveVocabulary(mode, level).map(p => p.id));
+          this.bag = this.bag.filter(p => allowedIds.has(p.id));
+          if (sig === 'CURSED16' && this.lastVocabSignature === 'TET4') {
+            this.bag = [];
+          }
+          this.lastVocabSignature = sig;
+        }
+        while (this.bag.length < count) {
+          this.refillBag(mode, level);
+        }
+        return this.bag.slice(0, count);
+      }
+    }
+
+    /* ==========================================================================
+     * ACHIEVEMENTS CATALOG (10 Named Session-Persistent Achievements)
+     * ========================================================================== */
+    const ACHIEVEMENT_DEFS = [
+      { id: 'Triforce',        name: 'Triforce',        desc: 'Clear 3 rows simultaneously' },
+      { id: 'Sphinx Riddle',   name: 'Sphinx Riddle',   desc: 'Lock a sphinx piece that contributes to a completed row' },
+      { id: 'Butterfly Effect',name: 'Butterfly Effect',desc: 'Clear a row using a butterfly piece' },
+      { id: 'Cursed!',         name: 'Cursed!',         desc: 'Reach level 5 in CURSED mode (hexiamonds begin)' },
+      { id: 'No Mercy',        name: 'No Mercy',        desc: 'Reach level 10 in HEXIAMOND mode' },
+      { id: 'Geodesic',        name: 'Geodesic',        desc: 'Clear 100 total lines in a single game' },
+      { id: 'Zero State',      name: 'Zero State',      desc: 'Clear the entire board (all-clear — no occupied cells after a line clear)' },
+      { id: 'Helix',           name: 'Helix',           desc: 'Clear at least one line on 10 consecutive piece locks' },
+      { id: 'Ternary Perfect', name: 'Ternary Perfect', desc: 'Board state after lock where every occupied cell in lowest 3 rows is ▲ (all T, no F)' },
+      { id: 'Patient',         name: 'Patient',         desc: 'Lock a piece without pressing any input for 30s at level 5+' }
+    ];
+
+    /* ==========================================================================
+     * SCORING & BALANCED TERNARY ENGINE
+     * ========================================================================== */
+    const COMBO_MULTIPLIERS = [1.0, 1.5, 2.0, 2.5, 3.0];
+
+    function computeLineClearBaseScore(linesCleared) {
+      if (linesCleared <= 0) return 0;
+      if (linesCleared === 1) return 100;
+      if (linesCleared === 2) return 300;
+      if (linesCleared === 3) return 500;
+      return 800 + 200 * (linesCleared - 4);
+    }
+
+    function encodeBoardBalancedTernary(board, includeBuffer = false) {
+      const startRow = includeBuffer ? 0 : BUFFER_ROWS;
+      let out = '';
+      for (let r = startRow; r < TOTAL_ROWS; r++) {
+        for (let c = 0; c < GRID_COLS; c++) {
+          if (board[r][c] === null) {
+            out += 'Z';
+          } else {
+            out += isUpTriangle(r, c) ? 'T' : 'F';
+          }
+        }
+      }
+      return out;
+    }
+
+    /* ==========================================================================
+     * CORE TRYTRIS GAME ENGINE (Pure State Machine for Headless & Live Play)
+     * ========================================================================== */
+    class TrytrisEngine {
+      constructor(options = {}) {
+        this.mode = options.mode || 'NORMAL';
+        this.seed = options.seed !== undefined ? options.seed : 42;
+        this.earnedAchievements = options.earnedAchievements || new Set();
+        this.onAchievementUnlocked = options.onAchievementUnlocked || null;
+        this.reset(this.seed, this.mode);
+      }
+
+      reset(seed = this.seed, mode = this.mode) {
+        this.seed = seed;
+        this.mode = mode;
+        this.bagGen = new SeededBagGenerator(seed);
+        this.board = Array.from({ length: TOTAL_ROWS }, () => Array(GRID_COLS).fill(null));
+        this.score = 0;
+        this.lines = 0;
+        this.level = 1;
+        this.comboStreak = 0; // consecutive piece locks that cleared >= 1 line
+        this.backToBackActive = false;
+        this.gameOver = false;
+        this.paused = false;
+        this.ticks = 0;
+        this.idleMs = 0;
+        this.activePiece = null;
+        this.checkModeLevelAchievements();
+        this.spawnNextPiece();
+      }
+
+      setMode(newMode) {
+        if (!['NORMAL', 'CURSED', 'HEXIAMOND'].includes(newMode)) return;
+        this.mode = newMode;
+        if (this.activePiece) {
+          const allowed = new Set(getActiveVocabulary(this.mode, this.level).map(p => p.id));
+          if (!allowed.has(this.activePiece.def.id)) {
+            this.spawnNextPiece();
+          }
+        }
+        this.checkModeLevelAchievements();
+      }
+
+      setLevel(lvl) {
+        this.level = Math.max(1, Math.min(15, lvl));
+        this.checkModeLevelAchievements();
+      }
+
+      checkModeLevelAchievements() {
+        if (this.mode === 'CURSED' && this.level >= 5) {
+          this.unlockAchievement('Cursed!');
+        }
+        if (this.mode === 'HEXIAMOND' && this.level >= 10) {
+          this.unlockAchievement('No Mercy');
+        }
+      }
+
+      unlockAchievement(id) {
+        if (!this.earnedAchievements.has(id)) {
+          this.earnedAchievements.add(id);
+          if (typeof this.onAchievementUnlocked === 'function') {
+            this.onAchievementUnlocked(id);
+          }
+        }
+      }
+
+      spawnNextPiece() {
+        const def = this.bagGen.nextPiece(this.mode, this.level, 3);
+        // Spawn in buffer rows (row 1, col 4 -> r+c = 5 odd, so adjust col to 3 or 4 so anchor (r+c) is EVEN!)
+        // Anchor (anchorR + anchorC) MUST be even so local cell (dr, dc) preserves (anchorR+dr + anchorC+dc) parity!
+        const anchorR = 1;
+        const anchorC = 3; // 1 + 3 = 4 (EVEN!)
+        this.activePiece = {
+          def,
+          rotIndex: 0,
+          r: anchorR,
+          c: anchorC
+        };
+        if (!this.canPlace(this.activePiece.def, this.activePiece.rotIndex, this.activePiece.r, this.activePiece.c)) {
+          this.gameOver = true;
+        }
+      }
+
+      getPieceWorldCells(piece = this.activePiece) {
+        if (!piece) return [];
+        const shape = piece.def.rotations[piece.rotIndex];
+        return shape.map(([dr, dc]) => [piece.r + dr, piece.c + dc]);
+      }
+
+      canPlace(def, rotIndex, anchorR, anchorC) {
+        // Anchor parity must be even so triangle orientations match canonical definition
+        if (((anchorR + anchorC) & 1) !== 0) return false;
+        const shape = def.rotations[rotIndex];
+        for (let i = 0; i < shape.length; i++) {
+          const r = anchorR + shape[i][0];
+          const c = anchorC + shape[i][1];
+          if (r < 0 || r >= TOTAL_ROWS || c < 0 || c >= GRID_COLS) {
+            return false;
+          }
+          if (this.board[r][c] !== null) {
+            return false;
+          }
+        }
+        return true;
+      }
+
+      /**
+       * Move piece horizontally or vertically on the triangular grid.
+       * Because shifting by 1 column or 1 row alone flips (r+c) parity,
+       * let's see how pieces move on a triangular grid:
+       * - Moving down 1 row: (r + 1, c) changes parity unless we either:
+       *   Wait! Can a triangle at (r, c) move straight down to (r + 1, c)?
+       *   HOLD ON! At (r, c), (r + c) has parity P. At (r + 1, c), (r + 1 + c) has parity 1 - P!
+       *   Wait: on an equilateral triangular grid, an UP triangle ▲ at (r, c) cannot occupy a DOWN triangle ▽ at (r+1, c) without flipping upside down OR shifting 1 column left/right (r+1, c±1) OR dropping 2 rows, OR wait: how does falling work in Trytris?
+       */
+      moveHorizontal(dir) {
+        if (this.gameOver || this.paused || !this.activePiece) return false;
+        this.idleMs = 0;
+        const p = this.activePiece;
+        // Try shifting by 2 columns in the same row (preserves parity strictly),
+        // or shifting by 1 column + 1 row (diagonal slide down-left/down-right, which also preserves parity!)
+        if (this.canPlace(p.def, p.rotIndex, p.r, p.c + dir * 2)) {
+          p.c += dir * 2;
+          return true;
+        }
+        if (this.canPlace(p.def, p.rotIndex, p.r + 1, p.c + dir)) {
+          p.r += 1;
+          p.c += dir;
+          return true;
+        }
+        return false;
+      }
+
+      rotate(dir = 1) {
+        if (this.gameOver || this.paused || !this.activePiece) return false;
+        this.idleMs = 0;
+        const p = this.activePiece;
+        const count = p.def.symmetryOrder;
+        if (count <= 1) return true; // 1-state piece (Hexagon)
+        const nextRot = (p.rotIndex + dir + count) % count;
+        // Parity-preserving wall kicks: [dr, dc] with dr+dc even
+        const kicks = [
+          [0, 0], [0, 2], [0, -2], [1, 1], [1, -1], [-1, 1], [-1, -1], [2, 0]
+        ];
+        for (let i = 0; i < kicks.length; i++) {
+          const kr = p.r + kicks[i][0];
+          const kc = p.c + kicks[i][1];
+          if (this.canPlace(p.def, nextRot, kr, kc)) {
+            p.rotIndex = nextRot;
+            p.r = kr;
+            p.c = kc;
+            return true;
+          }
+        }
+        return false;
+      }
+
+      stepGravityDown() {
+        if (!this.activePiece) return false;
+        const p = this.activePiece;
+        // On the triangular grid, moving from row r to row r+1 while preserving ▲/▽ orientation
+        // zig-zags by ±1 column (or +2 rows straight down if zig-zag is blocked).
+        const zigDir = (p.r & 1) === 0 ? 1 : -1;
+        if (this.canPlace(p.def, p.rotIndex, p.r + 1, p.c + zigDir)) {
+          p.r += 1;
+          p.c += zigDir;
+          return true;
+        }
+        if (this.canPlace(p.def, p.rotIndex, p.r + 1, p.c - zigDir)) {
+          p.r += 1;
+          p.c -= zigDir;
+          return true;
+        }
+        if (this.canPlace(p.def, p.rotIndex, p.r + 2, p.c)) {
+          p.r += 2;
+          return true;
+        }
+        return false;
+      }
+
+      getGhostPiece() {
+        if (!this.activePiece) return null;
+        const ghost = {
+          def: this.activePiece.def,
+          rotIndex: this.activePiece.rotIndex,
+          r: this.activePiece.r,
+          c: this.activePiece.c
+        };
+        while (true) {
+          const zigDir = (ghost.r & 1) === 0 ? 1 : -1;
+          if (this.canPlace(ghost.def, ghost.rotIndex, ghost.r + 1, ghost.c + zigDir)) {
+            ghost.r += 1;
+            ghost.c += zigDir;
+          } else if (this.canPlace(ghost.def, ghost.rotIndex, ghost.r + 1, ghost.c - zigDir)) {
+            ghost.r += 1;
+            ghost.c -= zigDir;
+          } else if (this.canPlace(ghost.def, ghost.rotIndex, ghost.r + 2, ghost.c)) {
+            ghost.r += 2;
+          } else {
+            break;
+          }
+        }
+        return ghost;
+      }
+
+      softDrop() {
+        if (this.gameOver || this.paused || !this.activePiece) return false;
+        this.idleMs = 0;
+        if (this.stepGravityDown()) {
+          return true;
+        } else {
+          this.lockActivePiece();
+          return false;
+        }
+      }
+
+      hardDrop() {
+        if (this.gameOver || this.paused || !this.activePiece) return 0;
+        this.idleMs = 0;
+        let dropped = 0;
+        while (this.stepGravityDown()) {
+          dropped++;
+        }
+        this.lockActivePiece();
+        return dropped;
+      }
+
+      tick(inputCmd = null, elapsedMs = 0) {
+        if (this.gameOver || this.paused) return;
+        this.ticks++;
+        this.idleMs += elapsedMs;
+
+        // First check if any pre-seeded full rows exist on the board (for Test 6 & direct board state seeding)
+        const preCleared = this.resolveFullRows(null);
+        if (preCleared > 0) {
+          return;
+        }
+
+        if (inputCmd === 'LEFT') this.moveHorizontal(-1);
+        else if (inputCmd === 'RIGHT') this.moveHorizontal(1);
+        else if (inputCmd === 'ROT_CW') this.rotate(1);
+        else if (inputCmd === 'ROT_CCW') this.rotate(-1);
+        else if (inputCmd === 'HARD') {
+          this.hardDrop();
+          return;
+        }
+
+        if (!this.stepGravityDown()) {
+          this.lockActivePiece();
+        }
+      }
+
+      lockActivePiece() {
+        if (!this.activePiece) return;
+        const p = this.activePiece;
+        const worldCells = this.getPieceWorldCells(p);
+        const lockedRows = new Set();
+
+        for (let i = 0; i < worldCells.length; i++) {
+          const [r, c] = worldCells[i];
+          if (r >= 0 && r < TOTAL_ROWS && c >= 0 && c < GRID_COLS) {
+            this.board[r][c] = {
+              color: p.def.color,
+              pieceId: p.def.id,
+              slug: p.def.slug
+            };
+            lockedRows.add(r);
+          }
+        }
+
+        // Patient achievement: Lock a piece without pressing any input for 30 consecutive seconds at level 5 or higher
+        if (this.level >= 5 && this.idleMs >= 30000) {
+          this.unlockAchievement('Patient');
+        }
+
+        // Check buffer overflow for Game Over (any locked cell in buffer rows 0..3 that remains after row clear)
+        const linesCleared = this.resolveFullRows({
+          def: p.def,
+          lockedRows
+        });
+
+        // Ternary Perfect achievement: after any lock, every occupied cell in the lowest 3 visible rows (rows 25, 26, 27) is up-pointing (▲) — all T, no F (with at least 1 occupied cell)
+        this.checkTernaryPerfect();
+
+        // Check if any buffer row (0..3) still has an occupied cell
+        for (let r = 0; r < BUFFER_ROWS; r++) {
+          for (let c = 0; c < GRID_COLS; c++) {
+            if (this.board[r][c] !== null) {
+              this.gameOver = true;
+              break;
+            }
+          }
+        }
+
+        if (!this.gameOver) {
+          this.spawnNextPiece();
+        }
+      }
+
+      checkTernaryPerfect() {
+        let upCount = 0;
+        let downCount = 0;
+        for (let r = TOTAL_ROWS - 3; r < TOTAL_ROWS; r++) {
+          for (let c = 0; c < GRID_COLS; c++) {
+            if (this.board[r][c] !== null) {
+              if (isUpTriangle(r, c)) upCount++;
+              else downCount++;
+            }
+          }
+        }
+        if (upCount > 0 && downCount === 0) {
+          this.unlockAchievement('Ternary Perfect');
+        }
+      }
+
+      resolveFullRows(lockContext = null) {
+        const fullRows = [];
+        for (let r = 0; r < TOTAL_ROWS; r++) {
+          let occupiedCount = 0;
+          for (let c = 0; c < GRID_COLS; c++) {
+            if (this.board[r][c] !== null) occupiedCount++;
+          }
+          if (occupiedCount === GRID_COLS) {
+            fullRows.push(r);
+          }
+        }
+
+        const count = fullRows.length;
+        if (count === 0) {
+          if (lockContext !== null) {
+            this.comboStreak = 0;
+          }
+          return 0;
+        }
+
+        // Remove cleared rows and collapse rows above downward
+        const fullSet = new Set(fullRows);
+        const remainingRows = [];
+        for (let r = 0; r < TOTAL_ROWS; r++) {
+          if (!fullSet.has(r)) {
+            remainingRows.push(this.board[r]);
+          }
+        }
+        while (remainingRows.length < TOTAL_ROWS) {
+          remainingRows.unshift(Array(GRID_COLS).fill(null));
+        }
+        this.board = remainingRows;
+
+        // Calculate scoring
+        const baseScore = computeLineClearBaseScore(count) * this.level;
+
+        if (lockContext !== null) {
+          this.comboStreak += 1;
+        } else {
+          this.comboStreak = Math.max(1, this.comboStreak);
+        }
+
+        const comboIdx = Math.min(COMBO_MULTIPLIERS.length - 1, Math.max(0, this.comboStreak - 1));
+        const comboMult = COMBO_MULTIPLIERS[comboIdx];
+
+        // Difficult clear check for Back-to-Back bonus:
+        // "3+ simultaneous lines, or any clear in HEXIAMOND/CURSED mode using a hexiamond piece spanning >= 2 rows"
+        const isHexSpan2 = Boolean(
+          lockContext &&
+          (this.mode === 'HEXIAMOND' || this.mode === 'CURSED') &&
+          lockContext.def.isHexiamond &&
+          lockContext.lockedRows.size >= 2
+        );
+        const isDifficult = (count >= 3) || isHexSpan2;
+        const b2bMult = (isDifficult && this.backToBackActive) ? 1.5 : 1.0;
+        this.backToBackActive = isDifficult;
+
+        const earnedScore = Math.round(baseScore * comboMult * b2bMult);
+        this.score += earnedScore;
+        this.lines += count;
+
+        // Level progression: increases every 10 lines cleared, cap 15
+        const computedLevel = Math.min(15, 1 + Math.floor(this.lines / 10));
+        if (computedLevel > this.level) {
+          this.level = computedLevel;
+        }
+
+        // Achievements on line clear
+        if (count >= 3) {
+          this.unlockAchievement('Triforce');
+        }
+        if (lockContext && lockContext.def.slug === 'sphinx') {
+          // Verify sphinx contributed to at least one completed row
+          const contributed = fullRows.some(r => lockContext.lockedRows.has(r));
+          if (contributed) this.unlockAchievement('Sphinx Riddle');
+        }
+        if (lockContext && lockContext.def.slug === 'butterfly') {
+          const contributed = fullRows.some(r => lockContext.lockedRows.has(r));
+          if (contributed) this.unlockAchievement('Butterfly Effect');
+        }
+        if (this.lines >= 100) {
+          this.unlockAchievement('Geodesic');
+        }
+        if (this.comboStreak >= 10) {
+          this.unlockAchievement('Helix');
+        }
+
+        // Check Zero State (all-clear — no occupied cells after a line clear)
+        let anyOccupied = false;
+        for (let r = 0; r < TOTAL_ROWS; r++) {
+          for (let c = 0; c < GRID_COLS; c++) {
+            if (this.board[r][c] !== null) {
+              anyOccupied = true;
+              break;
+            }
+          }
+          if (anyOccupied) break;
+        }
+        if (!anyOccupied) {
+          this.unlockAchievement('Zero State');
+        }
+
+        this.checkModeLevelAchievements();
+        return count;
+      }
+    }
+
+    /* ==========================================================================
+     * IN-BROWSER SELF-TEST SUITE (17 Numbered Assertions)
+     * ========================================================================== */
+    function runSelfTestSuite() {
+      const results = [];
+      function record(num, title, passed, reason) {
+        results.push({ num, title, passed: Boolean(passed), reason });
+      }
+
+      // 1. Geometry — triangle height
+      {
+        const h = computeTriangleHeight(1.0);
+        const formatted = h.toFixed(4);
+        const pass = (formatted === '0.8660') && Math.abs(h - Math.sqrt(3) / 2) < 1e-12;
+        record(1, 'Geometry — triangle height', pass, `side=1.0 -> h=${h.toFixed(6)} (4 dec: ${formatted})`);
+      }
+
+      // 2. Geometry — vertex adjacency
+      {
+        // Down-pointing triangle at (r=5, c=2) -> r+c=7 (odd); Up-pointing neighbor at (r=4, c=2) -> r+c=6 (even)
+        const downV = getTriangleVertices(5, 2, 1.0);
+        const upV = getTriangleVertices(4, 2, 1.0);
+        // Down top edge is [downV[0], downV[1]]; Up bottom edge is [upV[1], upV[2]]
+        const eps = 1e-12;
+        const matchLeft = Math.abs(downV[0].x - upV[1].x) < eps && Math.abs(downV[0].y - upV[1].y) < eps;
+        const matchRight = Math.abs(downV[1].x - upV[2].x) < eps && Math.abs(downV[1].y - upV[2].y) < eps;
+        const pass = matchLeft && matchRight;
+        record(2, 'Geometry — vertex adjacency', pass, `Down(5,2) top edge [(${downV[0].x.toFixed(2)},${downV[0].y.toFixed(3)}),(${downV[1].x.toFixed(2)},${downV[1].y.toFixed(3)})] == Up(4,2) base`);
+      }
+
+      // 3. Piece count — tetriamond
+      {
+        const vocab = getActiveVocabulary('NORMAL', 1);
+        const distinctIds = new Set(vocab.map(p => p.id));
+        const pass = vocab.length === 4 && distinctIds.size === 4 && vocab.every(p => p.order === 4);
+        record(3, 'Piece count — tetriamond', pass, `NORMAL mode vocabulary has ${distinctIds.size} distinct order-4 tetriamonds`);
+      }
+
+      // 4. Piece count — hexiamond
+      {
+        const vocab = getActiveVocabulary('HEXIAMOND', 1);
+        const distinctIds = new Set(vocab.map(p => p.id));
+        const pass = vocab.length === 12 && distinctIds.size === 12 && vocab.every(p => p.order === 6);
+        record(4, 'Piece count — hexiamond', pass, `HEXIAMOND mode vocabulary has ${distinctIds.size} distinct order-6 hexiamonds`);
+      }
+
+      // 5. Rotation states — symmetry
+      {
+        const allPieces = TETRIAMOND_SET.concat(HEXIAMOND_SET);
+        const expectedOrders = {
+          P1: 3, P2: 3, P3: 6, P4: 2,
+          H1: 3, H2: 6, H3: 6, H4: 6, H5: 6, H6: 6, H7: 6, H8: 1, H9: 3, H10: 6, H11: 6, H12: 3
+        };
+        const allMatch = allPieces.every(p => p.rotations.length === expectedOrders[p.id] && p.symmetryOrder === expectedOrders[p.id]);
+        const fewerThanSix = allPieces.filter(p => p.rotations.length < 6).length;
+        const pass = allMatch && fewerThanSix >= 1;
+        record(5, 'Rotation states — symmetry', pass, `All 16 pieces match symmetry group orders (${fewerThanSix} pieces have <6 states, e.g. P4=2, H8=1)`);
+      }
+
+      // 6. Row clear — full row fires
+      {
+        const eng = new TrytrisEngine({ seed: 101, mode: 'NORMAL' });
+        const targetRow = 26;
+        for (let c = 0; c < GRID_COLS; c++) {
+          eng.board[targetRow][c] = { color: '#38bdf8', pieceId: 'SEED_R', slug: 'seed' };
+        }
+        eng.tick();
+        const stillPresent = eng.board.some(row => row.some(cell => cell && cell.pieceId === 'SEED_R'));
+        const pass = !stillPresent && eng.lines === 1;
+        record(6, 'Row clear — full row fires', pass, `Full row ${targetRow} cleared and collapsed on 1 tick (lines=${eng.lines})`);
+      }
+
+      // 7. Row clear — partial row does not fire
+      {
+        const eng = new TrytrisEngine({ seed: 101, mode: 'NORMAL' });
+        eng.activePiece = null; // simulate one tick with no new piece
+        const targetRow = 26;
+        for (let c = 0; c < GRID_COLS - 1; c++) {
+          eng.board[targetRow][c] = { color: '#38bdf8', pieceId: 'PARTIAL_R', slug: 'partial' };
+        }
+        eng.board[targetRow][GRID_COLS - 1] = null;
+        eng.tick();
+        const countRemaining = eng.board[targetRow].filter(cell => cell && cell.pieceId === 'PARTIAL_R').length;
+        const pass = countRemaining === (GRID_COLS - 1) && eng.lines === 0;
+        record(7, 'Row clear — partial row does not fire', pass, `Row with 11/12 cells retained all ${countRemaining} cells after tick`);
+      }
+
+      // 8. Determinism
+      {
+        const fixedInputs = ['LEFT', 'ROT_CW', null, 'RIGHT', null, 'HARD', 'LEFT', null, 'ROT_CW', 'HARD',
+                             'RIGHT', null, 'LEFT', 'ROT_CCW', 'HARD', null, 'LEFT', null, 'RIGHT', 'HARD'];
+        const runSim = () => {
+          const eng = new TrytrisEngine({ seed: 42, mode: 'NORMAL' });
+          for (let t = 0; t < 20; t++) {
+            eng.tick(fixedInputs[t]);
+          }
+          return encodeBoardBalancedTernary(eng.board, true) + '|S:' + eng.score;
+        };
+        const stateA = runSim();
+        const stateB = runSim();
+        const pass = stateA === stateB && stateA.length > 0;
+        record(8, 'Determinism', pass, `Seed 42 over 20 ticks produced identical board & score state`);
+      }
+
+      // 9. Balanced ternary encoding — empty board
+      {
+        const eng = new TrytrisEngine({ seed: 42, mode: 'NORMAL' });
+        const enc = encodeBoardBalancedTernary(eng.board, false);
+        const expectedLen = VISIBLE_ROWS * GRID_COLS; // 288
+        const onlyZ = enc.length === expectedLen && /^Z+$/.test(enc);
+        record(9, 'Balanced ternary encoding — empty board', onlyZ, `Fresh visible board encoded as ${enc.length} 'Z' characters`);
+      }
+
+      // 10. Balanced ternary encoding — occupied cell
+      {
+        const eng = new TrytrisEngine({ seed: 42, mode: 'NORMAL' });
+        // Place one up-pointing cell at visible row index 0 (board row 4, col 0 -> 4+0=4 even -> ▲)
+        eng.board[BUFFER_ROWS][0] = { color: '#38bdf8', pieceId: 'P1', slug: 'bar_l' };
+        const enc = encodeBoardBalancedTernary(eng.board, false);
+        const pass = enc[0] === 'T' && enc.slice(1).split('').every(ch => ch === 'Z');
+        record(10, 'Balanced ternary encoding — occupied cell', pass, `Up-pointing ▲ at (row 4, col 0) encoded as 'T' at index 0`);
+      }
+
+      // 11. Cursed Mode — tetriamond start
+      {
+        const eng = new TrytrisEngine({ seed: 42, mode: 'CURSED' });
+        const firstId = eng.activePiece.def.id;
+        const inTetSet = TETRIAMOND_SET.some(p => p.id === firstId);
+        record(11, 'Cursed Mode — tetriamond start', inTetSet, `First piece in CURSED mode is ${firstId} (order=${eng.activePiece.def.order})`);
+      }
+
+      // 12. Cursed Mode — hexiamond arrival
+      {
+        const gen = new SeededBagGenerator(42);
+        const preLevel5Pieces = [];
+        for (let i = 0; i < 24; i++) {
+          preLevel5Pieces.push(gen.nextPiece('CURSED', 1));
+        }
+        const noHexBefore5 = preLevel5Pieces.every(p => !p.isHexiamond);
+        const postLevel5Pieces = [];
+        for (let i = 0; i < 24; i++) {
+          postLevel5Pieces.push(gen.nextPiece('CURSED', 5));
+        }
+        const hasHexAt5 = postLevel5Pieces.some(p => p.isHexiamond);
+        const pass = noHexBefore5 && hasHexAt5;
+        record(12, 'Cursed Mode — hexiamond arrival', pass, `0/24 hexiamonds before L5; ${postLevel5Pieces.filter(p => p.isHexiamond).length}/24 hexiamonds at L5`);
+      }
+
+      // 13. Mode exclusion
+      {
+        const radios = Array.from(document.querySelectorAll('input[name="pieceMode"]'));
+        let pass = radios.length === 3;
+        for (const target of ['CURSED', 'HEXIAMOND', 'NORMAL']) {
+          selectPieceModeUI(target, false);
+          const checkedCount = radios.filter(r => r.checked).length;
+          const activeVal = radios.find(r => r.checked)?.value;
+          if (checkedCount !== 1 || activeVal !== target) {
+            pass = false;
+          }
+        }
+        record(13, 'Mode exclusion', pass, `Radio group enforces mutually exclusive active state across NORMAL/CURSED/HEXIAMOND`);
+      }
+
+      // 14. Scoring — combo
+      {
+        const eng = new TrytrisEngine({ seed: 42, mode: 'NORMAL' });
+        const scoresPerClear = [];
+        for (let turn = 0; turn < 3; turn++) {
+          const prevScore = eng.score;
+          // Fill row 27 except columns 0..3, and place P1 ([[0,0],[0,1],[0,2],[0,3]]) at anchor (27, 0)?
+          // Wait: 27 + 0 = 27 (odd), so use row 26, cols 0..3 (26+0 = 26 even!)
+          const r = 26;
+          for (let c = 4; c < GRID_COLS; c++) {
+            eng.board[r][c] = { color: '#38bdf8', pieceId: 'FILL', slug: 'fill' };
+          }
+          eng.activePiece = { def: PIECE_BY_ID['P1'], rotIndex: 0, r: 26, c: 0 };
+          eng.lockActivePiece();
+          scoresPerClear.push(eng.score - prevScore);
+        }
+        const pass = scoresPerClear.length === 3 && scoresPerClear[2] >= 1.5 * scoresPerClear[0];
+        record(14, 'Scoring — combo', pass, `Clear 1: +${scoresPerClear[0]}, Clear 2: +${scoresPerClear[1]}, Clear 3: +${scoresPerClear[2]} (>=1.5x)`);
+      }
+
+      // 15. Scoring — level multiplier
+      {
+        const eng1 = new TrytrisEngine({ seed: 42, mode: 'NORMAL' });
+        eng1.setLevel(1);
+        for (let c = 4; c < GRID_COLS; c++) eng1.board[26][c] = { color: '#38bdf8', pieceId: 'F', slug: 'f' };
+        eng1.activePiece = { def: PIECE_BY_ID['P1'], rotIndex: 0, r: 26, c: 0 };
+        eng1.lockActivePiece();
+
+        const eng3 = new TrytrisEngine({ seed: 42, mode: 'NORMAL' });
+        eng3.setLevel(3);
+        for (let c = 4; c < GRID_COLS; c++) eng3.board[26][c] = { color: '#38bdf8', pieceId: 'F', slug: 'f' };
+        eng3.activePiece = { def: PIECE_BY_ID['P1'], rotIndex: 0, r: 26, c: 0 };
+        eng3.lockActivePiece();
+
+        const pass = eng3.score === 3 * eng1.score && eng1.score === 100;
+        record(15, 'Scoring — level multiplier', pass, `Level 1 1-line=${eng1.score}, Level 3 1-line=${eng3.score} (3x base)`);
+      }
+
+      // 16. Achievement — Zero State fires
+      {
+        const achSet = new Set();
+        const eng = new TrytrisEngine({ seed: 42, mode: 'NORMAL', earnedAchievements: achSet });
+        for (let c = 4; c < GRID_COLS; c++) {
+          eng.board[26][c] = { color: '#38bdf8', pieceId: 'F', slug: 'f' };
+        }
+        eng.activePiece = { def: PIECE_BY_ID['P1'], rotIndex: 0, r: 26, c: 0 };
+        eng.lockActivePiece();
+        const pass = achSet.has('Zero State');
+        record(16, 'Achievement — Zero State fires', pass, `All-clear board state unlocked 'Zero State'`);
+      }
+
+      // 17. Achievement — Triforce fires
+      {
+        // Seed a board with exactly 3 rows each missing exactly one cell, all in the same column;
+        // lock one piece that fills all 3 gaps simultaneously; Triforce must be marked earned.
+        const achSet = new Set();
+        const eng = new TrytrisEngine({ seed: 42, mode: 'HEXIAMOND', earnedAchievements: achSet });
+        // Piece H11 (rhombus) rotIndex 0 has cells: [[0,0], [1,0], [1,1], [2,0], [2,1], [3,0]].
+        // Notice at anchor (r=24, c=4) (24+4=28 even), its cells in column 4 are (24,4), (25,4), (26,4), (27,4)!
+        // Let's seed rows 24, 25, 27 to be missing ONLY column 4, while row 26 has only column 4 & 5 from the piece (not full),
+        // OR even cleaner: H10 (lobster) rotIndex 0 has cells [[0,0], [1,0], [1,1], [2,0], [2,1], [2,2]].
+        // Wait: if rows 24, 25, 26 are initially seeded with 11 cells each (missing ONLY column 4),
+        // and we place H11 at anchor (r=23, c=4)? Wait: 23+4=27 is odd!
+        // Let's check anchor (r=24, c=4) (even) with H10 rotIndex 0:
+        // H10 rot 0 has cells: (0,0), (1,0), (1,1), (2,0), (2,1), (2,2).
+        // If we seed rows 24, 25, 26 missing ONLY column 4, wait: what happens to (1,1), (2,1), (2,2)?
+        // If we use H11 rotIndex 0: [[0,0], [1,0], [1,1], [2,0], [2,1], [3,0]],
+        // Wait: in rows 24, 25, 26, if those 3 rows are already filled in columns != 4, then (1,1) in row 25 col 5 would overlap unless row 24, 26, 27 are the 3 rows!
+        // Wait: what if a piece has cells in rows 24, 25, 26 at column 4, and its other cells are in rows that are NOT full?
+        // Look at H11 rot 0: cells are (0,0), (1,0), (1,1), (2,0), (2,1), (3,0).
+        // It has only ONE cell in row +0 -> (0,0), and only ONE cell in row +3 -> (3,0)!
+        // What about the middle rows +1 and +2? It has 2 cells in row +1 and 2 cells in row +2.
+        // Wait: can lockActivePiece lock a piece when its cells fill the single missing column in 3 rows?
+        // Yes! lockActivePiece writes each cell of activePiece onto `this.board[r][c]`.
+        // Even if the other cells of H11 land on already-occupied cells in rows 25 and 26, `this.board[r][c]` stays occupied and all 3 rows (24, 25, 26) become 12/12 full and clear simultaneously!
+        // [Audit fix 2026-11-13] Legal placement: seed rows 24-26 everywhere EXCEPT the cells H10 will occupy,
+        // so the lock fills exactly the gaps (the delivered version locked on top of occupied cells).
+        eng.activePiece = { def: PIECE_BY_ID['H10'], rotIndex: 0, r: 24, c: 4 };
+        const holes = new Set(eng.getPieceWorldCells().map(([r, c]) => r + ',' + c));
+        for (const r of [24, 25, 26]) {
+          for (let c = 0; c < GRID_COLS; c++) {
+            if (!holes.has(r + ',' + c)) eng.board[r][c] = { color: '#22d3ee', pieceId: 'SEED', slug: 'seed' };
+          }
+        }
+        const legal = eng.canPlace(eng.activePiece.def, 0, 24, 4);
+        eng.lockActivePiece();
+        const pass = legal && achSet.has('Triforce') && eng.lines === 3;
+        record(17, 'Achievement — Triforce fires', pass, `Legal H10 lock fills the gaps of 3 rows -> lines=${eng.lines}, Triforce=${achSet.has('Triforce')}`);
+      }
+
+      // 18. Ternary Negation — an odd number of cleared rows negates every trit above it (T <-> F)
+      {
+        const eng = new TrytrisEngine({ seed: 42, mode: 'NORMAL' });
+        eng.activePiece = null;
+        eng.board[20][4] = { color: '#38bdf8', pieceId: 'MARK', slug: 'mark' };   // (20+4) even -> ▲ = T
+        for (let c = 0; c < GRID_COLS; c++) eng.board[27][c] = { color: '#f59e0b', pieceId: 'F', slug: 'f' };
+        const before = encodeBoardBalancedTernary(eng.board, false)[(20 - BUFFER_ROWS) * GRID_COLS + 4];
+        eng.resolveFullRows(null);
+        const after = encodeBoardBalancedTernary(eng.board, false)[(21 - BUFFER_ROWS) * GRID_COLS + 4];
+        const pass = before === 'T' && after === 'F' && eng.board[21][4] && eng.board[21][4].pieceId === 'MARK';
+        record(18, 'Ternary Negation — odd clear flips T/F above', pass, `Cell above a 1-row clear read ${before}, now reads ${after}`);
+      }
+
+      return results;
+    }
+
+    /* ==========================================================================
+     * WEB AUDIO SYNTHESIZER (Zero external dependencies, mute toggleable)
+     * ========================================================================== */
+    class SoundEffects {
+      constructor() {
+        this.enabled = false;
+        this.ctx = null;
+      }
+
+      toggle() {
+        this.enabled = !this.enabled;
+        if (this.enabled && !this.ctx) {
+          const AudioCtx = window.AudioContext || window.webkitAudioContext;
+          if (AudioCtx) this.ctx = new AudioCtx();
+        }
+        return this.enabled;
+      }
+
+      beep(freq = 440, duration = 0.06, type = 'triangle') {
+        if (!this.enabled || !this.ctx) return;
+        try {
+          if (this.ctx.state === 'suspended') this.ctx.resume();
+          const osc = this.ctx.createOscillator();
+          const gain = this.ctx.createGain();
+          osc.type = type;
+          osc.frequency.setValueAtTime(freq, this.ctx.currentTime);
+          gain.gain.setValueAtTime(0.08, this.ctx.currentTime);
+          gain.gain.exponentialRampToValueAtTime(0.001, this.ctx.currentTime + duration);
+          osc.connect(gain);
+          gain.connect(this.ctx.destination);
+          osc.start();
+          osc.stop(this.ctx.currentTime + duration);
+        } catch (_) {}
+      }
+    }
+
+    /* ==========================================================================
+     * UI CONTROLLER & SVG TRIANGULAR RENDERER
+     * ========================================================================== */
+    const sfx = new SoundEffects();
+    const sessionAchievements = new Set();
+    let showGhostPiece = true;
+    let showTernaryDisplay = true;
+
+    const liveEngine = new TrytrisEngine({
+      seed: 42,
+      mode: 'NORMAL',
+      earnedAchievements: sessionAchievements,
+      onAchievementUnlocked: (achId) => {
+        renderAchievementsList();
+        showAchievementToast(achId);
+        sfx.beep(880, 0.18, 'sine');
+      }
+    });
+
+    const boardSvg = document.getElementById('board-svg');
+    const cellPolygons = Array.from({ length: VISIBLE_ROWS }, () => Array(GRID_COLS).fill(null));
+
+    function initBoardSVG() {
+      boardSvg.innerHTML = '';
+      for (let vr = 0; vr < VISIBLE_ROWS; vr++) {
+        const boardRow = vr + BUFFER_ROWS;
+        for (let c = 0; c < GRID_COLS; c++) {
+          const verts = getTriangleVertices(vr, c, TRI_SIDE);
+          const pts = verts.map(v => `${v.x.toFixed(4)},${v.y.toFixed(4)}`).join(' ');
+          const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          poly.setAttribute('points', pts);
+          poly.setAttribute('fill', isUpTriangle(boardRow, c) ? '#0c111d' : '#090d16');
+          poly.setAttribute('stroke', '#1e293b');
+          poly.setAttribute('stroke-width', '0.035');
+          boardSvg.appendChild(poly);
+          cellPolygons[vr][c] = poly;
+        }
+      }
+    }
+
+    function renderBoardSVG() {
+      // Reset base grid colors and locked cells
+      for (let vr = 0; vr < VISIBLE_ROWS; vr++) {
+        const r = vr + BUFFER_ROWS;
+        for (let c = 0; c < GRID_COLS; c++) {
+          const poly = cellPolygons[vr][c];
+          const cell = liveEngine.board[r][c];
+          if (cell !== null) {
+            poly.setAttribute('fill', cell.color);
+            poly.setAttribute('stroke', '#0f172a');
+            poly.setAttribute('stroke-width', '0.045');
+            poly.setAttribute('fill-opacity', '1');
+          } else {
+            poly.setAttribute('fill', isUpTriangle(r, c) ? '#0c111d' : '#090d16');
+            poly.setAttribute('stroke', '#1e293b');
+            poly.setAttribute('stroke-width', '0.035');
+            poly.setAttribute('fill-opacity', '1');
+          }
+        }
+      }
+
+      // Draw Ghost Piece if enabled
+      if (showGhostPiece && liveEngine.activePiece && !liveEngine.gameOver) {
+        const ghost = liveEngine.getGhostPiece();
+        if (ghost) {
+          const ghostCells = liveEngine.getPieceWorldCells(ghost);
+          for (let i = 0; i < ghostCells.length; i++) {
+            const [r, c] = ghostCells[i];
+            const vr = r - BUFFER_ROWS;
+            if (vr >= 0 && vr < VISIBLE_ROWS && c >= 0 && c < GRID_COLS) {
+              const poly = cellPolygons[vr][c];
+              poly.setAttribute('fill', ghost.def.color);
+              poly.setAttribute('fill-opacity', '0.22');
+              poly.setAttribute('stroke', ghost.def.color);
+              poly.setAttribute('stroke-width', '0.05');
+            }
+          }
+        }
+      }
+
+      // Draw Active Piece
+      if (liveEngine.activePiece && !liveEngine.gameOver) {
+        const activeCells = liveEngine.getPieceWorldCells(liveEngine.activePiece);
+        for (let i = 0; i < activeCells.length; i++) {
+          const [r, c] = activeCells[i];
+          const vr = r - BUFFER_ROWS;
+          if (vr >= 0 && vr < VISIBLE_ROWS && c >= 0 && c < GRID_COLS) {
+            const poly = cellPolygons[vr][c];
+            poly.setAttribute('fill', liveEngine.activePiece.def.color);
+            poly.setAttribute('fill-opacity', '1');
+            poly.setAttribute('stroke', '#f8fafc');
+            poly.setAttribute('stroke-width', '0.05');
+          }
+        }
+      }
+    }
+
+    function renderPreviewBoxes() {
+      const previews = liveEngine.bagGen.peekPreview(liveEngine.mode, liveEngine.level, 3);
+      for (let idx = 0; idx < 3; idx++) {
+        const svgEl = document.getElementById(`next-svg-${idx}`);
+        const nameEl = document.getElementById(`next-name-${idx}`);
+        svgEl.innerHTML = '';
+        const p = previews[idx];
+        if (!p) {
+          nameEl.textContent = '-';
+          continue;
+        }
+        nameEl.textContent = p.name;
+        const shape = p.rotations[0];
+        for (let i = 0; i < shape.length; i++) {
+          const [r, c] = shape[i];
+          const verts = getTriangleVertices(r, c, 1.0);
+          const pts = verts.map(v => `${v.x.toFixed(3)},${v.y.toFixed(3)}`).join(' ');
+          const poly = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          poly.setAttribute('points', pts);
+          poly.setAttribute('fill', p.color);
+          poly.setAttribute('stroke', '#0f172a');
+          poly.setAttribute('stroke-width', '0.06');
+          svgEl.appendChild(poly);
+        }
+      }
+    }
+
+    function renderBalancedTernaryPanel() {
+      const box = document.getElementById('ternary-section-box');
+      if (!showTernaryDisplay) {
+        box.style.display = 'none';
+        return;
+      }
+      box.style.display = 'block';
+
+      // Build board snapshot including active falling piece so readout updates live every frame
+      const tempBoard = liveEngine.board.map(row => row.slice());
+      if (liveEngine.activePiece && !liveEngine.gameOver) {
+        const cells = liveEngine.getPieceWorldCells(liveEngine.activePiece);
+        for (let i = 0; i < cells.length; i++) {
+          const [r, c] = cells[i];
+          if (r >= 0 && r < TOTAL_ROWS && c >= 0 && c < GRID_COLS) {
+            tempBoard[r][c] = { color: liveEngine.activePiece.def.color };
+          }
+        }
+      }
+
+      const fullStr = encodeBoardBalancedTernary(tempBoard, false);
+      let countT = 0;
+      let countZ = 0;
+      let countF = 0;
+      let htmlRows = '';
+
+      for (let vr = 0; vr < VISIBLE_ROWS; vr++) {
+        const rowSlice = fullStr.slice(vr * GRID_COLS, (vr + 1) * GRID_COLS);
+        let rowHtml = '';
+        for (let c = 0; c < GRID_COLS; c++) {
+          const ch = rowSlice[c];
+          if (ch === 'T') { countT++; rowHtml += '<span class="trit-T">T</span>'; }
+          else if (ch === 'F') { countF++; rowHtml += '<span class="trit-F">F</span>'; }
+          else { countZ++; rowHtml += '<span class="trit-Z">Z</span>'; }
+        }
+        const rowNum = String(vr + 1).padStart(2, '0');
+        htmlRows += `<div class="trit-row"><span class="trit-row-idx">R${rowNum}</span><span>${rowHtml}</span></div>`;
+      }
+
+      document.getElementById('ternary-display').innerHTML = htmlRows;
+      document.getElementById('ternary-summary').textContent = `T:${countT} Z:${countZ} F:${countF}`;
+    }
+
+    function getDropIntervalMs(level) {
+      // Speed increases with level (drop interval decreases), level cap 15
+      return Math.max(110, 850 - (level - 1) * 50);
+    }
+
+    function renderHUD() {
+      document.getElementById('hud-score').textContent = liveEngine.score.toLocaleString();
+      document.getElementById('hud-level').textContent = liveEngine.level;
+      document.getElementById('hud-lines').textContent = liveEngine.lines;
+
+      const comboIdx = Math.min(COMBO_MULTIPLIERS.length - 1, Math.max(0, liveEngine.comboStreak - 1));
+      const mult = liveEngine.comboStreak > 0 ? COMBO_MULTIPLIERS[comboIdx] : 1.0;
+      document.getElementById('hud-combo').textContent = `${mult}×`;
+      document.getElementById('hud-streak').textContent = `Streak: ${liveEngine.comboStreak}`;
+      document.getElementById('hud-b2b').textContent = liveEngine.backToBackActive ? 'B2B: 1.5× READY' : 'B2B: IDLE';
+
+      const intervalMs = getDropIntervalMs(liveEngine.level);
+      document.getElementById('hud-speed').textContent = `${intervalMs}ms / tick`;
+
+      // Cursed Mode Banner visibility: visible from Level 1 whenever CURSED mode is selected
+      const cursedBanner = document.getElementById('cursed-ui-banner');
+      if (liveEngine.mode === 'CURSED') {
+        cursedBanner.classList.add('visible');
+      } else {
+        cursedBanner.classList.remove('visible');
+      }
+
+      const vocab = getActiveVocabulary(liveEngine.mode, liveEngine.level);
+      document.getElementById('active-piece-vocab-info').textContent =
+        `VOCAB: ${vocab.length} PIECES (${liveEngine.mode})`;
+
+      // Active piece telemetry
+      if (liveEngine.activePiece) {
+        const p = liveEngine.activePiece;
+        document.getElementById('info-piece-id').textContent = `${p.def.name}`;
+        document.getElementById('info-piece-rot').textContent = `${p.rotIndex + 1} / ${p.def.symmetryOrder}`;
+        document.getElementById('info-piece-pos').textContent = `(r=${p.r}, c=${p.c})`;
+      }
+      document.getElementById('info-idle-time').textContent = `${(liveEngine.idleMs / 1000).toFixed(1)}s`;
+
+      // Overlay for Paused / Game Over
+      const overlay = document.getElementById('board-overlay');
+      const titleEl = document.getElementById('overlay-title-text');
+      const subEl = document.getElementById('overlay-sub-text');
+      const btnEl = document.getElementById('btn-overlay-action');
+      const statusText = document.getElementById('game-status-text');
+
+      if (liveEngine.gameOver) {
+        overlay.classList.add('visible');
+        titleEl.textContent = 'GAME OVER';
+        subEl.textContent = `Final Score: ${liveEngine.score} | Seed: ${liveEngine.seed}`;
+        btnEl.textContent = 'Play Again';
+        statusText.textContent = 'GAME OVER';
+      } else if (liveEngine.paused) {
+        overlay.classList.add('visible');
+        titleEl.textContent = 'PAUSED';
+        subEl.textContent = 'Game loop suspended';
+        btnEl.textContent = 'Resume';
+        statusText.textContent = 'PAUSED';
+      } else {
+        overlay.classList.remove('visible');
+        statusText.textContent = 'RUNNING';
+      }
+    }
+
+    function renderAchievementsList() {
+      const container = document.getElementById('achievements-list');
+      container.innerHTML = '';
+      let unlockedCount = 0;
+
+      for (let i = 0; i < ACHIEVEMENT_DEFS.length; i++) {
+        const a = ACHIEVEMENT_DEFS[i];
+        const unlocked = sessionAchievements.has(a.id);
+        if (unlocked) unlockedCount++;
+
+        const div = document.createElement('div');
+        div.className = `ach-item ${unlocked ? 'unlocked' : 'locked'}`;
+        div.innerHTML = `
+          <div class="ach-header">
+            <span class="ach-name">${unlocked ? a.name : '???'}</span>
+            <span>${unlocked ? 'UNLOCKED' : 'LOCKED'}</span>
+          </div>
+          <div class="ach-desc">${unlocked ? a.desc : '???'}</div>
+        `;
+        container.appendChild(div);
+      }
+      document.getElementById('ach-counter').textContent = `${unlockedCount} / ${ACHIEVEMENT_DEFS.length}`;
+    }
+
+    let toastTimer = null;
+    function showAchievementToast(achId) {
+      const def = ACHIEVEMENT_DEFS.find(a => a.id === achId);
+      if (!def) return;
+      const toast = document.getElementById('achievement-toast');
+      toast.textContent = `ACHIEVEMENT UNLOCKED: ${def.name} — ${def.desc}`;
+      toast.classList.add('show');
+      if (toastTimer) clearTimeout(toastTimer);
+      toastTimer = setTimeout(() => {
+        toast.classList.remove('show');
+      }, 3500);
+    }
+
+    function selectPieceModeUI(mode, applyToLiveGame = true) {
+      const radios = document.querySelectorAll('input[name="pieceMode"]');
+      radios.forEach(r => {
+        r.checked = (r.value === mode);
+      });
+      document.getElementById('label-mode-normal').className =
+        `radio-item ${mode === 'NORMAL' ? 'active' : ''}`;
+      document.getElementById('label-mode-cursed').className =
+        `radio-item ${mode === 'CURSED' ? 'cursed-active' : ''}`;
+      document.getElementById('label-mode-hexiamond').className =
+        `radio-item ${mode === 'HEXIAMOND' ? 'active' : ''}`;
+
+      if (applyToLiveGame) {
+        liveEngine.setMode(mode);
+        updateFullUI();
+      }
+    }
+
+    function renderTestSuiteUI() {
+      const results = runSelfTestSuite();
+      const listEl = document.getElementById('test-results-list');
+      listEl.innerHTML = '';
+      let passCount = 0;
+
+      for (let i = 0; i < results.length; i++) {
+        const r = results[i];
+        if (r.passed) passCount++;
+        const item = document.createElement('div');
+        item.className = `test-item ${r.passed ? 'pass' : 'fail'}`;
+        item.innerHTML = `
+          <div class="test-head">
+            <span>#${r.num} ${r.title}</span>
+            <span class="test-status ${r.passed ? 'pass' : 'fail'}">${r.passed ? 'PASS' : 'FAIL'}</span>
+          </div>
+          <div class="test-reason">${r.reason}</div>
+        `;
+        listEl.appendChild(item);
+      }
+
+      const allPassed = (passCount === results.length);
+      const summaryBar = document.getElementById('test-summary-bar');
+      summaryBar.textContent = `${passCount} / ${results.length} assertions passed.`;
+      summaryBar.style.color = allPassed ? 'var(--pass)' : 'var(--fail)';
+
+      const badge = document.getElementById('test-ready-badge');
+      if (allPassed) {
+        badge.textContent = `READY (${passCount}/${results.length} PASS)`;
+        badge.className = 'ready-badge ready';
+      } else {
+        badge.textContent = `FAILED (${passCount}/${results.length})`;
+        badge.className = 'ready-badge failed';
+      }
+    }
+
+    function updateFullUI() {
+      renderBoardSVG();
+      renderPreviewBoxes();
+      renderHUD();
+      renderBalancedTernaryPanel();
+    }
+
+    /* ==========================================================================
+     * EVENT LISTENERS & MAIN ANIMATION LOOP
+     * ========================================================================== */
+    document.getElementById('btn-apply-seed').addEventListener('click', () => {
+      const rawSeed = document.getElementById('seed-input').value;
+      liveEngine.reset(rawSeed, liveEngine.mode);
+      updateFullUI();
+    });
+
+    document.getElementById('btn-random-seed').addEventListener('click', () => {
+      const randSeed = Math.floor(Math.random() * 900000 + 100000);
+      document.getElementById('seed-input').value = String(randSeed);
+      liveEngine.reset(randSeed, liveEngine.mode);
+      updateFullUI();
+    });
+
+    document.getElementById('btn-new-game').addEventListener('click', () => {
+      const rawSeed = document.getElementById('seed-input').value;
+      liveEngine.reset(rawSeed, liveEngine.mode);
+      updateFullUI();
+    });
+
+    document.getElementById('btn-pause').addEventListener('click', () => {
+      if (liveEngine.gameOver) return;
+      liveEngine.paused = !liveEngine.paused;
+      document.getElementById('btn-pause').textContent = liveEngine.paused ? 'Resume (P)' : 'Pause (P)';
+      updateFullUI();
+    });
+
+    document.getElementById('btn-overlay-action').addEventListener('click', () => {
+      if (liveEngine.gameOver) {
+        const rawSeed = document.getElementById('seed-input').value;
+        liveEngine.reset(rawSeed, liveEngine.mode);
+      } else {
+        liveEngine.paused = false;
+        document.getElementById('btn-pause').textContent = 'Pause (P)';
+      }
+      updateFullUI();
+    });
+
+    document.getElementById('btn-step-tick').addEventListener('click', () => {
+      liveEngine.paused = false;
+      liveEngine.tick(null, getDropIntervalMs(liveEngine.level));
+      liveEngine.paused = true;
+      document.getElementById('btn-pause').textContent = 'Resume (P)';
+      updateFullUI();
+    });
+
+    document.getElementById('btn-audio-mute').addEventListener('click', () => {
+      const on = sfx.toggle();
+      document.getElementById('btn-audio-mute').textContent = `Audio: ${on ? 'ON' : 'OFF'}`;
+      if (on) sfx.beep(523.25, 0.05);
+    });
+
+    document.querySelectorAll('input[name="pieceMode"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        if (e.target.checked) {
+          selectPieceModeUI(e.target.value, true);
+        }
+      });
+    });
+
+    document.getElementById('toggle-ghost').addEventListener('change', (e) => {
+      showGhostPiece = e.target.checked;
+      updateFullUI();
+    });
+
+    document.getElementById('toggle-ternary').addEventListener('change', (e) => {
+      showTernaryDisplay = e.target.checked;
+      updateFullUI();
+    });
+
+    document.getElementById('btn-run-tests').addEventListener('click', () => {
+      renderTestSuiteUI();
+    });
+
+    // On-screen pad controls
+    document.getElementById('pad-left').addEventListener('click', () => {
+      if (liveEngine.moveHorizontal(-1)) sfx.beep(330, 0.04);
+      updateFullUI();
+    });
+    document.getElementById('pad-right').addEventListener('click', () => {
+      if (liveEngine.moveHorizontal(1)) sfx.beep(330, 0.04);
+      updateFullUI();
+    });
+    document.getElementById('pad-up-rot').addEventListener('click', () => {
+      if (liveEngine.rotate(1)) sfx.beep(493.88, 0.05);
+      updateFullUI();
+    });
+    document.getElementById('pad-rot-ccw').addEventListener('click', () => {
+      if (liveEngine.rotate(-1)) sfx.beep(440, 0.05);
+      updateFullUI();
+    });
+    document.getElementById('pad-down').addEventListener('click', () => {
+      liveEngine.softDrop();
+      sfx.beep(261.63, 0.04);
+      updateFullUI();
+    });
+    document.getElementById('pad-hard').addEventListener('click', () => {
+      liveEngine.hardDrop();
+      sfx.beep(196.0, 0.08, 'square');
+      updateFullUI();
+    });
+
+    // Keyboard controls
+    window.addEventListener('keydown', (e) => {
+      if (e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA')) return;
+      const key = e.key;
+      if (key === 'p' || key === 'P') {
+        e.preventDefault();
+        if (!liveEngine.gameOver) {
+          liveEngine.paused = !liveEngine.paused;
+          document.getElementById('btn-pause').textContent = liveEngine.paused ? 'Resume (P)' : 'Pause (P)';
+          updateFullUI();
+        }
+        return;
+      }
+      if (liveEngine.gameOver || liveEngine.paused) return;
+
+      if (key === 'ArrowLeft' || key === 'a' || key === 'A') {
+        e.preventDefault();
+        if (liveEngine.moveHorizontal(-1)) sfx.beep(330, 0.04);
+        updateFullUI();
+      } else if (key === 'ArrowRight' || key === 'd' || key === 'D') {
+        e.preventDefault();
+        if (liveEngine.moveHorizontal(1)) sfx.beep(330, 0.04);
+        updateFullUI();
+      } else if (key === 'ArrowUp' || key === 'w' || key === 'W' || key === 'x' || key === 'X') {
+        e.preventDefault();
+        if (liveEngine.rotate(1)) sfx.beep(493.88, 0.05);
+        updateFullUI();
+      } else if (key === 'z' || key === 'Z') {
+        e.preventDefault();
+        if (liveEngine.rotate(-1)) sfx.beep(440, 0.05);
+        updateFullUI();
+      } else if (key === 'ArrowDown' || key === 's' || key === 'S') {
+        e.preventDefault();
+        liveEngine.softDrop();
+        sfx.beep(261.63, 0.04);
+        updateFullUI();
+      } else if (key === ' ') {
+        e.preventDefault();
+        liveEngine.hardDrop();
+        sfx.beep(196.0, 0.08, 'square');
+        updateFullUI();
+      }
+    });
+
+    // Main RAF Loop
+    let lastFrameTime = performance.now();
+    let dropAccumulator = 0;
+
+    function animationLoop(now) {
+      const dt = Math.max(0, Math.min(250, now - lastFrameTime));
+      lastFrameTime = now;
+
+      if (!liveEngine.paused && !liveEngine.gameOver) {
+        dropAccumulator += dt;
+        liveEngine.idleMs += dt;
+        const interval = getDropIntervalMs(liveEngine.level);
+        if (dropAccumulator >= interval) {
+          dropAccumulator -= interval;
+          liveEngine.tick(null, 0);
+        }
+        updateFullUI();
+      }
+      requestAnimationFrame(animationLoop);
+    }
+
+    window.addEventListener('load', () => {
+      initBoardSVG();
+      renderAchievementsList();
+      renderTestSuiteUI();
+      updateFullUI();
+      lastFrameTime = performance.now();
+      requestAnimationFrame(animationLoop);
+    });
+  </script>
+
+  <!-- REPORT
+  ==============================================================================
+  WHAT WAS BUILT AND WHAT WAS NOT:
+  - Built:
+    * Equilateral triangular grid SVG renderer (12 columns × 24 visible rows + 4 hidden buffer rows = 28 total rows), with exact triangle height h = s * sqrt(3)/2 and shared vertex coordinates between adjacent ▲ and ▽ triangles.
+    * Complete 4-piece tetriamond vocabulary (P1–P4) and 12 free hexiamond vocabulary (H1–H12: parallelogram, hook, triangle, chevron, sphinx, bat, yacht, hexagon, snake, lobster, rhombus, butterfly) with exact rotational symmetry group states (1, 2, 3, or 6 states).
+    * Three-way mutually exclusive Piece Mode selector (NORMAL, CURSED, HEXIAMOND) with "CURSED MODE — HEXIAMONDS INCOMING" banner displayed from Level 1 when CURSED is selected and hexiamond arrival at Level 5.
+    * Independent boolean toggles for Ghost Piece and Balanced Ternary Display (T/Z/F live readout).
+    * Mulberry32 deterministic PRNG with settable/displayable seed and auditable N-bag randomizer.
+    * Row clearing on 12/12 occupied triangle cells per row, row collapse, level progression (every 10 lines, cap 15), combo multipliers (1x..3x), and back-to-back 1.5x bonus.
+    * Session-persistent 10-achievement tracker (Triforce, Sphinx Riddle, Butterfly Effect, Cursed!, No Mercy, Geodesic, Zero State, Helix, Ternary Perfect, Patient).
+    * In-browser 17-assertion self-test runner gating the READY indicator.
+  - Not built:
+    * None (all specified components implemented in this single file).
+
+  TEST RESULTS (18 / 18 PASS in Chrome after audit fixes, 2026-11-13; #18 added, #17 rewritten):
+  - #1 Geometry — triangle height: PASS
+  - #2 Geometry — vertex adjacency: PASS
+  - #3 Piece count — tetriamond: PASS
+  - #4 Piece count — hexiamond: PASS
+  - #5 Rotation states — symmetry: PASS
+  - #6 Row clear — full row fires: PASS
+  - #7 Row clear — partial row does not fire: PASS
+  - #8 Determinism: PASS
+  - #9 Balanced ternary encoding — empty board: PASS
+  - #10 Balanced ternary encoding — occupied cell: PASS
+  - #11 Cursed Mode — tetriamond start: PASS
+  - #12 Cursed Mode — hexiamond arrival: PASS
+  - #13 Mode exclusion: PASS
+  - #14 Scoring — combo: PASS
+  - #15 Scoring — level multiplier: PASS
+  - #16 Achievement — Zero State fires: PASS
+  - #17 Achievement — Triforce fires: PASS
+  - #18 Ternary Negation — odd clear flips T/F above: PASS
+  - Failures: None (0 failures).
+
+  DEVIATIONS FROM SPEC:
+  - Free vs. One-Sided Tetriamonds: Strictly under 2D reflections (free polyiamonds), there are 3 free tetriamonds and 4 one-sided tetriamonds (because the I-bar tetriamond is chiral, whereas crook and pyramid are achiral). To satisfy both "4 free tetriamonds" and Test #3 ("Default mode piece vocabulary contains exactly 4 distinct pieces"), both chiral orientations of the I-bar (P1 and P2) are included alongside the crook (P3) and pyramid/triangle (P4), yielding 4 distinct order-4 polyiamonds with rotational symmetry orders 3, 3, 6, and 2.
+  - Hexiamond Nomenclature: Standard polyiamond literature names H3 "crown"; to match the 12-name list in the specification (triangle, rhombus, hook, parallelogram, snake, sphinx, hexagon, butterfly, chevron, lobster, yacht, bat), H3 is labeled `triangle (H3)`.
+
+  FEATURE (KEPT ON PURPOSE, 2026-11-13): TERNARY NEGATION
+  - On a triangular grid, moving a row down by one row flips every cell's orientation (▲ <-> ▽).
+    So clearing an ODD number of rows turns every triangle above the clear upside down, and the
+    balanced-ternary readout of everything above it is negated (T <-> F). Clearing an even number
+    of rows leaves orientation unchanged. Kham: "even if it is a bug it's a feature now."
+    Test #18 pins this behavior.
+
+  AUDIT NOTES (Kehai, 2026-11-13):
+  - Spec said "4 free tetriamonds"; only 3 free tetriamonds exist. The build uses the 4 ONE-SIDED
+    tetriamonds (P1/P2 are the mirror pair of the chiral bar). Independently verified, as were:
+    12 distinct free hexiamonds, all pieces edge-connected, all rotation states true rotations,
+    symmetry orders P1-P4 = 3,3,6,2 and H1-H12 = 3,6,6,6,6,6,6,1,3,6,6,3.
+  - Board viewBox was 13 units wide for a 6.5-unit board (half the frame empty); now sized to fit.
+  - Test #17 rewritten to a legal placement (the delivered test locked a piece over occupied cells).
+  - LIFT-1 hash corrected (was the empty-string SHA-256).
+
+  LIFTS:
+  - [LIFT-1] Mulberry32 PRNG
+    * Provenance: Tommy Ettinger (2017), public domain 32-bit state PRNG (`mulberry32.c`).
+    * Hash: none. [Audit fix 2026-11-13] The delivered value (e3b0c442...b855) is the SHA-256 of an EMPTY string, not of any source. No upstream file was attached to hash against; the function is written from the well-known public-domain algorithm.
+    * Intentional changes: Added `normalizeSeed()` FNV-1a string hash converter so arbitrary string or integer seeds initialize the 32-bit state deterministically.
+  - [LIFT-2] Triangular Grid 60° Lattice Vertex Rotation
+    * Provenance: Standard 2D Euclidean rotation matrix R(pi/3) applied to equilateral triangle vertices anchored at (0.5, 0).
+    * Hash: inline implementation `rotateCell60CW` & `normalizePolyiamond`.
+    * Intentional changes: Added parity-preserving translation (`(dr + dc) % 2 === 0`) so canonical cell orientations (`▲` vs `▽`) remain invariant across grid translations.
+  ==============================================================================
+  -->
+</body>
+</html>

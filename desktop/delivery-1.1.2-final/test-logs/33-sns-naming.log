@@ -1,0 +1,1 @@
+{"name":"33-sns-naming","status":"PASS","joinOrderNames":{"3":"tri1","4":"tri2","5":"tri3"},"afterLeaveAndRejoin":{"4":"tri2","5":"tri3","6":"tri1"},"deadHeatTieBreak":{"node3_token3":"tri1","node4_token4":"tri2"},"chosenNameClash":{"senior":"toshiba","junior":"toshiba2"},"duplicateNodeIdWarning":"NODE ID CLASH"}

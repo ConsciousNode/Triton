@@ -28,7 +28,18 @@ const suites = [
   './desktop-25-trytris-persistence.js',
   './desktop-26-trytris-isolation.js',
   './desktop-28-trytris-positive-controls.js',
-  './desktop-27-trytris-browser.js'
+  './desktop-27-trytris-browser.js',
+  './desktop-30-bugs-112.js',
+  './desktop-31-asm-template-equiv.js',
+  './desktop-32-golden-vectors.js',
+  './desktop-33-sns-naming.js',
+  './desktop-34-srrp-transfers.js',
+  './desktop-35-solitaire-112.js',
+  './desktop-36-trit-blocks-112.js',
+  './desktop-37-fonts-and-splash-112.js',
+  './desktop-38-browser-web-112.js',
+  './desktop-39-pacing-browser.js',
+  './desktop-40-three-tab-chat.js'
 ];
 
 const results = [];

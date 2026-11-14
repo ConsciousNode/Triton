@@ -1,0 +1,1 @@
+{"name":"22-trytris-rotation-tables","status":"PASS","source":"assembled ROM (TRY_PIECE_META, TRY_PIECE_CELLS)","piecesVerified":16,"rotationsVerified":72,"cellsVerified":404,"refLines":"853..1594","refSha256":"91293917014195ff492ab84dc15fa7f1c0d812e5c28a3580943573437a11a683"}

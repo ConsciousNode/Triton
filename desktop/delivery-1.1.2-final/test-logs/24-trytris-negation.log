@@ -1,0 +1,1 @@
+{"name":"24-trytris-negation","status":"PASS","oddRes":{"seed":0,"expectedClear":1,"linesAfter":1,"flippedChecked":3,"unflippedChecked":0},"evenRes":{"seed":248,"expectedClear":2,"linesAfter":2,"flippedChecked":0,"unflippedChecked":8}}

@@ -1,0 +1,1 @@
+{"name":"31-asm-template-equiv","status":"PASS","asmJsFilesChecked":["asm-kernel-and-drivers.js","asm-solitaire-and-blocks.js"],"snippetsChecked":5,"emittedTrytes":47559,"directVsTemplateDiffs":0,"unquotedCharCaught":true,"rawNewlineInStringzCaught":true}
