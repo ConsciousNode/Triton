@@ -63,16 +63,24 @@ function makeRng(seed = 0x2468ACE1) {
 }
 
 // MMIO Framebuffer Readback Helpers (strictly through architected MMIO >= T.T3_FB_BASE)
-let _glyphMap = null;
 function getGlyphMap(T) {
-  if (_glyphMap) return _glyphMap;
-  _glyphMap = new Map();
-  for (let c = 32; c < 96; c++) {
-    const g = T.T3_FONT_GLYPHS_64[c - 32];
-    const key = Array.from(g).join(',');
-    if (!_glyphMap.has(key)) _glyphMap.set(key, String.fromCharCode(c));
+  if (T._cachedGlyphMap) return T._cachedGlyphMap;
+  const gmap = new Map();
+  if (T.T3_FONT_9X9 && T.T3_FONT_9X9.length === 96) {
+    for (let c = 32; c < 128; c++) {
+      const g = T.T3_FONT_9X9[c - 32];
+      const key = Array.from(g).join(',');
+      if (!gmap.has(key)) gmap.set(key, String.fromCharCode(c));
+    }
+  } else {
+    for (let c = 32; c < 96; c++) {
+      const g = T.T3_FONT_GLYPHS_64[c - 32];
+      const key = Array.from(g).join(',');
+      if (!gmap.has(key)) gmap.set(key, String.fromCharCode(c));
+    }
   }
-  return _glyphMap;
+  T._cachedGlyphMap = gmap;
+  return gmap;
 }
 
 function readFbPixel(vmInst, T, x, y) {
@@ -81,6 +89,20 @@ function readFbPixel(vmInst, T, x, y) {
 
 function readFbChar(vmInst, T, x, y, bgColor) {
   const gmap = getGlyphMap(T);
+  if (T.T3_FONT_9X9 && T.T3_FONT_9X9.length === 96) {
+    const shColor = (typeof T.T3_FONT_SHADOW_COLOR === 'number') ? T.T3_FONT_SHADOW_COLOR : -358;
+    const rows = [];
+    for (let r = 0; r < 9; r++) {
+      let val = 0;
+      for (let col = 0; col < 9; col++) {
+        const px = readFbPixel(vmInst, T, x + col, y + r);
+        const trit = (px === bgColor) ? 0 : (px === shColor ? -1 : 1);
+        val = val * 3 + trit;
+      }
+      rows.push(val);
+    }
+    return gmap.get(rows.join(',')) || '?';
+  }
   const rows = [];
   for (let r = 0; r < 8; r++) {
     let bits = 0;
@@ -93,10 +115,12 @@ function readFbChar(vmInst, T, x, y, bgColor) {
   return gmap.get(rows.join(',')) || '?';
 }
 
-function readFbString(vmInst, T, x, y, len, bgColor) {
-  let s = '';
+function readFbString(vmInst, T, x, y, len, bgColor, preserveCase = false) {
+  let s = "";
+  const step = T.T3_FONT_9X9 ? 9 : 8;
   for (let i = 0; i < len; i++) {
-    s += readFbChar(vmInst, T, x + i * 8, y, bgColor);
+    const ch = readFbChar(vmInst, T, x + i * step, y, bgColor);
+    s += preserveCase ? ch : ch.toUpperCase();
   }
   return s;
 }

@@ -1,4 +1,4 @@
-# TritOS 1.1.1 Hardware Driver Library (`DRIVERS.md`)
+# TritOS 1.1.2 Hardware Driver Library (`DRIVERS.md`)
 
 **Studio:** ConsciousNode SoftWorks · **Licence:** MIT · **Target Architecture:** Triton 3.1 (`T3` Supervisor Mode)
 
@@ -15,7 +15,7 @@ This document specifies the six self-contained guest assembly hardware drivers s
 | `keyboard` | `v1` | `8` | `P_KC` (10), `P_KD` (11), `P_KT` (12) | `5869..5871` | `drv_kbd_init`, `drv_kbd_irq`, `drv_kbd_poll` |
 | `mouse` | `v1` | `9` | `P_MC` (13), `P_MX` (14), `P_MY` (15), `P_MB` (16) | `5872..5874`, `5878..5879`, `8910..8911` | `drv_mouse_init`, `drv_mouse_irq`, `drv_mouse_poll` |
 | `framebuffer` | `v1` | `None` | `P_DC` (5) | `7900..8628`, `8912..8928`, `15000000..15354293` | `drv_fb_init`, `drv_fb_redraw_rect`, `drv_fb_draw_char`, `drv_fb_draw_taskbar` |
-| `net` | `v2` | `11` | `P_NST` (22), `P_NID` (23), `P_NTX` (24), `P_NRX` (25), `P_NTF` (26), `P_NRF` (27) | `9700..9744`, `12200..17999`, `59049..65000` | `drv_net_init`, `drv_net_irq`, `drv_net_poll`, `drv_net_get_id`, `drv_net_send`, `drv_net_ping`, `drv_net_send_file`, `drv_net_status` |
+| `net` | `v3` | `11` | `P_NST` (22), `P_NID` (23), `P_NTX` (24), `P_NRX` (25), `P_NTF` (26), `P_NRF` (27) | `9700..9799`, `59049..65000`, `1417176..1456541` | `drv_net_init`, `drv_net_irq`, `drv_net_poll`, `drv_net_get_id`, `drv_net_send`, `drv_net_ping`, `drv_net_send_file`, `drv_net_status`, `drv_net_sns`, `drv_net_srrp` |
 
 ---
 
@@ -130,11 +130,11 @@ Passing a non-positive period (`R0 <= 0`) to `drv_timer_init` cleanly disables p
 
 ---
 
-## 6. Driver: `net` (`v2`)
+## 6. Driver: `net` (`v3`)
 
-- **Markers:** `; ==== DRIVER net v2 ====` … `; ==== END DRIVER net ====`
+- **Markers:** `; ==== DRIVER net v3 ====` … `; ==== END DRIVER net ====`
 - **Ports:** `P_NST` (22), `P_NID` (23), `P_NTX` (24), `P_NRX` (25), `P_NTF` (26), `P_NRF` (27)
-- **Memory:** `9700..9744` (`K_NET_IRQS`..`K_NET_IDX_TMP`), `12200..17999` (`K_NET_LAST_CHAT`, `K_NET_LAST_FILE`, `K_NET_STATUS_MSG`, `K_SFP_RX_NAME`, `K_NET_TX_BUF`, `K_NET_Q_BASE`), `59049..65000` (`K_SFP_BUF`)
+- **Memory:** `9700..9799` (`K_NET_IRQS`..`K_NET_CLASH_NODE`), `59049..65000` (`K_SFP_BUF`), `1417176..1456541` (`K_SNS_PEERS`, `K_NET_LAST_CHAT..K_NET_Q_BASE`, `K_SRRP_BUF`)
 - **IRQ Vector:** `11` (`IRQ_NET`, mask bit 4 = `16` in `SPR_IMASK`)
 
 ### Wire Format (16-Byte StudioNet Header, `spiralos/STUDIONET.md` §2)
@@ -166,6 +166,8 @@ All frames built and parsed by `net v2` use the 16-byte little-endian StudioNet 
 | `+10` | `drv_net_ping` | `R0` = `dst_node` | `R0` = `0` | `R1..R8` | Records `K_NET_PING_SENT_TICKS` via `drv_timer_read`, sets `K_NET_PING_PENDING = 1`, and sends an SDP Port 7 `PSH` request (`"PING"`, 4 bytes) to `R0`. |
 | `+12` | `drv_net_send_file` | `R0` = `dst_node`, `R1` = pointer to NUL-terminated filename | `R0` = `0` (sent), `-1` (missing file), or `-2` (`TOO BIG FOR SPIRALOS`) | `R1..R8` | Reads file from TritOS FS, selects byte mode (`'B'`, all trytes in `0..255`) or tryte mode (`'T'`, signed 16-bit LE), checks the 440-byte SpiralOS limit, and transmits single-frame (`SYN\|PSH\|FIN` on port `4300`) or multi-chunk (`SYN\|PSH` on `4300`, `PSH`/`PSH\|FIN` on `4301`) SSP frames. |
 | `+14` | `drv_net_status` | `R0` = destination buffer (`120` trytes) | `R0` = `K_NET_RX_PKTS` | `R1..R8` | Calls `drv_net_poll` and writes driver telemetry (`node_id`, `tx_pkts`, `rx_pkts`, `drop_pkts`, `ping_replies`, `last_rtt`, `chat_count`, `sfp_rx_count`, `last_chat[64]`, `last_file[16]`, `status_msg[20]`) to `R0`. |
+| `+16` | `drv_net_sns` | `R0` = op (`0`=poll/boot, `1`=HELLO, `2`=WHO, `3`=BYE, `4`=set name, `5`=copy peers), `R1` = ptr | `R0` = peer count or status | `R1..R8` | Implements StudioNet 1.0 SNS (`PROTO_SNS = 1`, port `53`) peer table and `NameAgent` naming rules (`triton`, `tri1`..`triN`, token tie-breaking, `NODE ID CLASH`). |
+| `+18` | `drv_net_srrp` | `R0` = dst_node, `R1` = verb, `R2` = path_ptr, `R3` = body_ptr, `R4` = body_len, `R5` = resp_buf | `R0` = status code (`200`, `201`, `403`, `404`, `413`, `-1` timeout) | `R1..R8` | Implements StudioNet 1.0 SRRP (`PROTO_SSP = 3`, port `80`) client and server (`GET`, `PUT`, `POST`, `LIST`, `DEL`, `Encoding: trytes16`, multi-frame SACK window, `/inbox` and `/share`). |
 
 ### Error Behavior
 

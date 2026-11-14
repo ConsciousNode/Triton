@@ -1,4 +1,4 @@
-# TritOS Desktop 1.1.1 — Architecture, Syscall, Application & Protocol Reference
+# TritOS Desktop 1.1.2 — Architecture, Syscall, Application & Protocol Reference
 
 ## 1. Hardware Platform & Memory Map (Triton 3.1)
 
@@ -57,7 +57,7 @@ All user-mode applications interact with hardware, windows, files, and StudioNet
 | `#41` | `SYS_NET_SEND` | `R0=dst_node, R1=proto, R2=payload_ptr, R3=len` | Builds 12-byte StudioNet header + 16-bit checksum and transmits frame over NIC |
 | `#42` | `SYS_NET_RECV` | `R0 = dst_buf_ptr` | Drains NIC RX queue and returns received SpiralChat message count |
 | `#43` | `SYS_NET_PING` | `R0 = dst_node` | Records current virtual step count and sends `PROTO_ECHO_REQ (1)` with `"PING"` payload |
-| `#44` | `SYS_NET_SEND_FILE` | `R0 = dst_node, R1 = filename_ptr` | Reads file from disk and transmits it in `PROTO_SFP (5)` chunks of up to 240 trytes |
+| `#44` | `SYS_NET_SEND_FILE` | `R0 = dst_node, R1 = filename_ptr` | Reads file from disk and transmits it in `PROTO_SSP (3)` chunks of up to 240 trytes |
 | `#45` | `SYS_NET_STATUS` | `R0 = user_buf_ptr` | Writes 100-tryte network status struct (Node ID, TX/RX/Drop counts, Ping replies, RTT in steps, last chat, last received SFP file) |
 
 ## 3. File Formats on Disk (Sector 200 Directory)

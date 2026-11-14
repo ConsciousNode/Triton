@@ -1,0 +1,17 @@
+evalmachine.<anonymous>:4399
+    throw new Error(`Invalid string literal: ${raw}`);
+    ^
+
+Error: Invalid string literal: "GET /index.hts SRRP/1
+    at parseStringLiteral (evalmachine.<anonymous>:4399:11)
+    at Object.assemble (evalmachine.<anonymous>:4531:25)
+    at Object.bootTritOSDesktop (evalmachine.<anonymous>:9274:30)
+    at runOnCore (/working_dir/c_63e709f117bb019b/work/tritos-1.1.2/triton/desktop/tests/desktop-14-write.js:25:5)
+    at runTest (/working_dir/c_63e709f117bb019b/work/tritos-1.1.2/triton/desktop/tests/desktop-14-write.js:16:13)
+    at Object.<anonymous> (/working_dir/c_63e709f117bb019b/work/tritos-1.1.2/triton/desktop/tests/desktop-14-write.js:89:57)
+    at Module._compile (node:internal/modules/cjs/loader:1364:14)
+    at Module._extensions..js (node:internal/modules/cjs/loader:1422:10)
+    at Module.load (node:internal/modules/cjs/loader:1203:32)
+    at Module._load (node:internal/modules/cjs/loader:1019:12)
+
+Node.js v18.20.4

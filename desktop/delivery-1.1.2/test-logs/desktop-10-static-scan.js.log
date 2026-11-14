@@ -1,0 +1,1 @@
+{"name":"10-static-scan","status":"PASS","inlineBlocksLabeled":4,"testFilesScanned":34,"zeroHostGuestMemAccesses":true,"zeroHostProtocolStack":true,"zeroSpiralOsRamReads":true,"spiralOsFilesVerifiedUnmodified":0}
