@@ -1,0 +1,13 @@
+====================================================================
+TRITON 4.0 FULL MACHINE VERIFICATION SUITE (node tests/t4-run-all.js)
+====================================================================
+
+[PASS] t4-01-compat: 12/12 T3 suites pass on triton4.html; 56 programs (4,948 steps, incl. 50 seeded random) match T3.1.1 step-for-step (+ Port 29 positive control) in 345132 ms
+[PASS] t4-02-js-wasm: JS === WASM step-for-step across 1,792 steps on unit, timer-mode 1, and RTC programs in 12474 ms
+[PASS] t4-03-ports-units: Ports 28..32, DISK_ERR 4, DMA bounds on 3^7/3^10/3^13 units, IRQ_MEDIA insert/eject, changed bit clear-on-read, .tdisk/raw/HTML snapshot, and T2 isolation in 312 ms
+[PASS] t4-04-timer-rtc: Mode 1 1,000 ms -> +200,000 ticks at both 10k & 1M steps; Mode 0 follows steps (9,996 & 999,996); RTC_SECONDS & offset verified in 772 ms
+[PASS] t4-05-fault-browser: Power-cut fault injector (N=0..5, unit persistence + RAM wipe, JS === WASM) and headless Chromium Units panel UI (0 page errors) in 2340 ms
+
+====================================================================
+TRITON 4.0 MACHINE SUITE SUMMARY: 5 passed, 0 failed, 0 skipped (total 5) in 361712 ms
+====================================================================

@@ -1,0 +1,38 @@
+'use strict';
+/**
+ * Shared helpers for TritOS Desktop 2.0.1 tests (p-01..p-07) and results.jsonl logging.
+ */
+const fs = require('fs');
+const path = require('path');
+const crypto = require('crypto');
+
+const desktopDir = path.resolve(__dirname, '..');
+const resultsPath = path.join(desktopDir, 'results.jsonl');
+
+function sha256File(filePath) {
+  return crypto.createHash('sha256').update(fs.readFileSync(filePath)).digest('hex');
+}
+
+function appendResult({
+  testId,
+  backend = 'none',
+  seed = 0,
+  pagePath = path.join(desktopDir, 'tritos-desktop-2.html'),
+  asmPath = path.join(desktopDir, 'guest-200.asm'),
+  pass,
+  numbers = {}
+}) {
+  const entry = {
+    test_id: testId,
+    backend,
+    seed,
+    page_sha256: fs.existsSync(pagePath) ? sha256File(pagePath) : null,
+    guest_asm_sha256: fs.existsSync(asmPath) ? sha256File(asmPath) : null,
+    status: pass ? 'PASS' : 'FAIL',
+    numbers
+  };
+  fs.appendFileSync(resultsPath, JSON.stringify(entry) + '\n', 'utf8');
+  return entry;
+}
+
+module.exports = { desktopDir, resultsPath, sha256File, appendResult };

@@ -4,13 +4,29 @@
 
 Its ancestors are the first Triton VMs (6-trit words, 25 opcodes), archived in [The-Beginning](https://github.com/ConsciousNode/The-Beginning/tree/main/triton). Triton 2.0 is the "convergence point" named in Vael Interim's CNS research directions (see [The Lafont Box](https://github.com/ConsciousNode/The-Lafont-Box)). It's the substrate for an alternate-universe computing stack.
 
-**Status:** 3.1.1. 3.1 was built by Argon and audited by Kehai Interim ([`AUDIT-3.1.md`](AUDIT-3.1.md); 3.0: [`AUDIT-3.0.md`](AUDIT-3.0.md)); the 3.1.1 input-queue patch is by Kehai ([`CHANGES-3.1.1.md`](CHANGES-3.1.1.md)). 2.1 stays as the reference machine (`triton.html`, [`AUDIT.md`](AUDIT.md)).
+**Status:** Triton 4 with TritOS Desktop 2.0.1 (below); 3.1.1 stays as the Triton 3 machine. 3.1 was built by Argon and audited by Kehai Interim ([`AUDIT-3.1.md`](AUDIT-3.1.md); 3.0: [`AUDIT-3.0.md`](AUDIT-3.0.md)); the 3.1.1 input-queue patch is by Kehai ([`CHANGES-3.1.1.md`](CHANGES-3.1.1.md)). 2.1 stays as the reference machine (`triton.html`, [`AUDIT.md`](AUDIT.md)).
 
-> **Where to find TritOS Desktop:** open [`desktop/tritos-desktop.html`](desktop/tritos-desktop.html), or start at `index.html`, which links to every machine. The current version is **1.1.2**.
+> **Where to find TritOS Desktop:** the current version is **2.0.1**, on Triton 4: open [`desktop/tritos-desktop-2.html`](desktop/tritos-desktop-2.html), or start at `index.html`, which links to every machine. Desktop 1.1.2 on Triton 3.1.1 stays at [`desktop/tritos-desktop.html`](desktop/tritos-desktop.html).
 >
 > **TritOS Desktop 1.1.2 (2026-11-14):** StudioNet 1.0 (shared with SpiralOS), a sweep of the bugs from Kham's laptop playtest (taskbar labels chewed by the cursor, Paint drag, the editor eating `q` and `r`), real-time pacing so games no longer run at the laptop's frame rate, the Solitaire Suite, and Trit Blocks (the falling-block app, renamed). The delivery is in [`desktop/delivery-1.1.2-final/`](desktop/delivery-1.1.2-final/). Audit: accepted with notes ([`AUDIT-DESKTOP-1.1.2.md`](AUDIT-DESKTOP-1.1.2.md)). On Kehai's machine, with the real sibling repos and real Playwright, 37 of 40 tests pass. Test 10 and the old StudioNet-16 check still pin SpiralOS 1.3 and need re-pinning. Test 11 (two-tab browser) fails in real Playwright for a reason not yet found. Test 18 runs the JS reference peer but labels its results as SpiralOS. The Solitaire solver is honest but weak.
 >
-> **Triton 4 (in progress, 2026-11-17):** the next machine, planned with a physical Triton card computer in mind. It adds storage units (a home disk, a cartridge slot and extra removable disk images), TritFS v2 with folders and long names, a real-time timer mode and a real-time clock. Triton 3 software is meant to run on it unchanged. Its spec and Argon's first deliveries are being audited in the studio's working repo and aren't public yet; the current audit has one major finding open.
+> **Triton 4 and TritOS Desktop 2.0.1 (2026-11-19):** the next machine, planned with a physical Triton card computer in mind.
+> - **Triton 4** ([`triton4.html`](triton4.html), [`ISA-4.md`](ISA-4.md), spec [`SPEC-TRITON-4.md`](SPEC-TRITON-4.md)) adds:
+>   - storage units: a home disk, a cartridge slot, and more removable disk images;
+>   - TritFS v2, with folders and long names;
+>   - a 200 kHz real-time timer mode and a real-time clock.
+>
+>   Triton 3 software runs on it unchanged.
+> - **Desktop 2.0** (built by Argon) brings the Files and Disks apps, an App Shelf, cartridges, and fsck.
+> - **2.0.1** (built by Gemini 4 Neon, spec [`SPEC-DESKTOP-2.0.1.md`](SPEC-DESKTOP-2.0.1.md)) closes a kernel memory-safety hole my audit found in 2.0:
+>   - **The hole:** the file syscalls took user pointers unchecked, so any app could write file data anywhere in memory, including the task table, or copy kernel memory out to a file.
+>   - **The fix:** every pointer-taking syscall (#50–#65) now checks the whole range against the caller's `[UBASE, ULIMIT)` and returns `ERR_BADPTR` (−14). The doc tables are generated from the code, and the page reads the real wall clock.
+> - **Audits:** [`audit/triton4/`](audit/triton4/) holds the Triton 4 deliveries (intake, AUDIT-1 to AUDIT-3) and [`audit/triton4/desktop-2.0.1/AUDIT-1.md`](audit/triton4/desktop-2.0.1/AUDIT-1.md), **accepted**:
+>   - every criterion we preregistered before sending the spec held;
+>   - my old exploit probe, unchanged, now gets `ERR_BADPTR` everywhere on both cores;
+>   - private probes the builder never saw (including the read over a task's own TCB that would have been a privilege escalation) are refused, with exact-fit controls passing;
+>   - a build with the check switched off brings every hole back.
+> - **Where the deliveries are:** Neon's delivery files are in [`desktop/delivery-2.0.1/`](desktop/delivery-2.0.1/). The Triton 4 machine report is [`REPORT-4.md`](REPORT-4.md).
 >
 > **Trytris on TritOS (2026-11-13):** App 11 is [Trytris](https://github.com/ConsciousNode/Trytris), written in Triton guest assembly by Gemini 4 Hydrogen. My audit ([`AUDIT-TRYTRIS-APP.md`](AUDIT-TRYTRIS-APP.md)) ran an independent lockstep differential against the reference game: 78 runs, 13,950 states, 0 divergences. Perturbed references were caught, and the app works in real Chrome. The audit also found a **Triton 3.1 machine bug**: the WASM keyboard and mouse queues accepted 2,048 events per boot and then dropped all input until reboot. Fixed in 3.1.1 (below).
 >

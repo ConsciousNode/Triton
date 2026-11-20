@@ -220,3 +220,139 @@ App 11 is a balanced-ternary triangular falling-piece game written in Triton 3 a
   - `19..354`: `28 × 12` board cells in row-major order (`0` = empty, `1..4` = `P1..P4`, `5..16` = `H1..H12`)
 - **`TRYHI`** (3 trytes, loaded at startup and updated whenever `score > highScore`):
   - `0..2`: persisted high score (27-trit word).
+
+
+---
+
+# TritOS Desktop 2.0 — Architecture, Memory Map, Path Syscalls & Applications (Triton 4)
+
+## 6. TritOS Desktop 2.0 Full Memory Map & `fsck` / Window Buffer Layout
+
+TritOS Desktop 2.0 (`desktop/tritos-desktop-2.html`, assembled from `desktop/guest-200.asm` via `desktop/build_desktop2.js`) runs on the **Triton 4** machine (`triton/triton4.html`, `archMode = 'T3'`).
+
+| Physical Tryte Range | Bank(s) (`19,683` trytes/bank) | Size (Trytes) | Purpose | Access |
+|---|---|---:|---|---|
+| `0 .. 5,777` | Bank `0` (`0..5,777`) | `5,778` | Stage-0 DMA Bootloader (`DRIVER disk v2`, loads `135` sectors = `98,415` trytes), `kernel_boot_entry`, `DRIVER timer v2`, `DRIVER keyboard v1`, `DRIVER mouse v1`, `syscall_handler`, Preemptive Scheduler, Window Manager, `DRIVER framebuffer v1`, Legacy `0:/` (`Sector 200`) `fs_init`/`fs_find`/`fs_write` (`FW_EXIT + 18 = 5,778 <= 5,800`) | Supervisor |
+| `5,800 .. 8,928` | Bank `0` (`5,800..8,928`) | `3,129` | Kernel BSS: Trap/IRQ Vector Table (`VEC_BASE = 5,800`, Vectors `0..12` at `5,800..5,838`), Globals (`5,840..5,899`), 8 Task Control Blocks (`TCB_BASE = 6,000..6,511`), 8 Event Queues (`EVQ_BASE = 6,512..7,023`), Legacy `0:/` Dir Mirror (`FS_DIR_BUF = 7,100..7,828`), Scanline Buffer (`SCAN_BUF = 7,900..8,628`), Window Table (`WINTAB = 8,700..8,891`), Z-Order & Cursor (`8,900..8,928`) | Supervisor |
+| `8,930 .. 9,435` | Bank `0` (`8,930..9,435`) | `506` | Mid Kernel: `fs_norm_name`, `fs_read`, `fs_delete`, `app_rom_table` (`Apps 0..14`), Kernel UI Strings, `splash_wait_sub` (`END_OF_CORE_KERNEL = 9,436 <= 9,460`) | Supervisor |
+| `9,460 .. 17,999` | Bank `0` (`9,460..17,999`) | `8,540` | `DRIVER net v3` Entry Table & Strings (`9,460..9,699`), `net v3` BSS (`9,700..9,799`), Supervisor/Exception Stack (`9,805..10,190`, `SPR_KSP = 10,190`), `DRIVER net v3` Implementation (`10,200..15,459`), StudioNet Frame Queues (`12,200..17,999`) | Supervisor |
+| `18,000 .. 19,592` | Bank `0` (`18,000..19,592`) | `1,593` | 9×9 Balanced-Ternary Font Glyphs (`18,000..18,863`, `864` trytes) & Boot Splash Tiles (`18,864..19,592`, `729` trytes) | Supervisor |
+| `19,683 .. 58,950` | Banks `1 .. 2` | `39,268` | Bundled User-Mode Application ROM Templates (`Apps 0..11`) & Self-Host Demo Source (`str_file_demo_asm`) | Supervisor |
+| `59,049 .. 65,000` | Bank `3` (`59,049..65,000`) | `5,952` | StudioNet SFP File Transfer Scratch Buffer (`K_SFP_BUF`) | Supervisor |
+| `65,020 .. 65,293` | Bank `3` (`65,020..65,293`) | `274` | Kernel 2.0 Far-Call Bridge (`k_fs2_boot_init`, `k_fs2_poll_media`, `k_fs2_fast_fault`, `k_fs2_draw_tb_row2`, `k_fs2_syscall_dispatch` `#50..#65`) | Supervisor |
+| `65,400 .. 71,889` | Bank `3` (`65,400..71,889`) | `6,490` | `DRIVER fs v2` (TritFS v2 Copy-on-Write Filesystem Driver, Paged SLT Cache, Path Resolver, `fsck`, Legacy/Doc/App Helpers) | Supervisor |
+| `71,890 .. 75,028` | Bank `3` (`71,890..75,028`) | `3,139` | Bundled 2.0 Application ROM Templates: `App 12` Files (`71,890..73,340`), `App 13` Disks (`73,341..74,067`), `App 14` App Shelf (`74,068..75,028`). Total boot image = `75,029` trytes (`103` sectors) | Supervisor |
+| `196,830 .. 826,685` | Banks `10 .. 41` | `629,856` | 8 User-Mode Task Memory Segments (`Slot i = 0..7`: `UBASE = (10 + 2*i) * 19,683`, `ULIMIT = UBASE + 39,366`; App 4 Assembler workspace uses Banks `30..49`, `590,490..984,149`) | User (Base/Limit Protected) |
+| `866,052 .. 885,734` | Bank `44` | `19,683` | StudioNet SRRP RX/TX Reassembly Buffer (`K_SRRP_BUF`) | Supervisor |
+| `1,023,516 .. 1,338,443` | **Banks `52 .. 67`** | `314,928` | **8 Window Backing Pixel Buffers (`Win i = 0..7`: `(52 + 2*i) * 19,683`, `39,366` trytes/window, max `240 × 160 = 38,400` pixels)** | Supervisor |
+| `1,377,810 .. 1,395,305` | Bank `70` | `17,496` | Offscreen Taskbar Composition Buffer (`TASKBAR_BUF`, `729 × 24` trytes) | Supervisor |
+| `1,397,493 .. 1,398,221` | Bank `71` | `729` | Legacy Sector Scratch Buffer (`FS_SEC_BUF`) | Supervisor |
+| `1,417,176 .. 1,456,541` | Banks `72 .. 73` | `39,366` | StudioNet SNS Peer Table (`K_SNS_PEERS`) & Telemetry Scratch | Supervisor |
+| `1,456,542 .. 1,464,101` | Bank `74` | `7,560` | `DRIVER fs v2` Metadata & Scratch (`FS_UNIT_TAB` `+0..1079`, `FS_UNIT_FREE` `+1100..1180`, `FS_SLT_META` `+1200..1359`, `FS_STATE_VARS` `+1400..1699`, `FS_PATH_PARTS` `+1700..2079`, `FS_DIR_STACK` `+2100..2819`, `FS_CHAIN_SECS` `+2900..4435`, `FS_SB_BUF` `+4500..5228`, `FS_WORK_SEC` `+5300..6028`, `FS_ZERO_SEC` `+6100..6828`, `FS_TMP_ENTRY`/`FS_TMP_PATH` `+6900..7555`) | Supervisor |
+| `1,476,225 .. 1,487,888` | Bank `75` | `11,664` | `DRIVER fs v2` Paged SLT Cache (`FS_SLT_DATA`: `16` pages × `729` trytes = `11,664` trytes, LRU-evicted, write-back on commit) | Supervisor |
+| `1,495,908 .. 1,535,273` | Banks `76 .. 77` | `39,366` | `DRIVER fs v2` Directory Read/Rebuild Buffer (`FS_DIR_WORK_BUF`, up to `54` sectors / `972` entries) | Supervisor |
+| `1,535,274 .. 1,574,639` | Banks `78 .. 79` | `39,366` | `DRIVER fs v2` Cross-Unit File Copy & App Shelf Launch Buffer (`FS_COPY_BUF`, `39,366` trytes) | Supervisor |
+| `1,574,640 .. 1,594,322` | **Bank `80`** | `19,683` | **`fsck` Traversal Stack (`FS_FSCK_STACK`, up to `2,500` 7-tryte walk items)** | Supervisor |
+| `1,594,323 .. 3,188,645` | **Banks `81 .. 161`** | `1,594,323` | **`fsck` Generation-Stamped Sector Owner Table (`FSCK_OWNER_BASE`, $3^{13} = 1,594,323$ trytes)** | Supervisor |
+| `3,188,646 .. 4,782,968` | **Banks `162 .. 242`** | `1,594,323` | **`fsck` Generation-Stamped Chain-Loop Detector (`FSCK_SEEN_BASE`, $3^{13} = 1,594,323$ trytes)** | Supervisor |
+| `15,000,000 .. 15,354,293` | MMIO | `354,294` | Architected MMIO Framebuffer (`729 × 486` pixels in 729-color palette `[-364..+364]`) | MMIO |
+
+### Where the `fsck` Tables Live Relative to Window Buffers & Running `fsck` With Windows Open
+
+- **Relative Placement:** The 8 window backing buffers (`Win 0..7`) live in **Banks `52..67` (`1,023,516 .. 1,338,443`)**, and user task segments (`Slots 0..7`) live in **Banks `10..41` (`196,830 .. 826,685`)**. The `DRIVER fs v2` workspace and all three `fsck` structures (`FS_FSCK_STACK` in Bank `80` at `1,574,640 .. 1,594,322`, `FSCK_OWNER_BASE` in Banks `81..161` at `1,594,323 .. 3,188,645`, and `FSCK_SEEN_BASE` in Banks `162..242` at `3,188,646 .. 4,782,968`) start at **Bank `74` (`1,456,542`)**, more than `118,000` trytes above the top of the highest window buffer (`1,338,443`).
+- **Can `fsck` Run With Windows Open?** **Yes.** Because `FS_FSCK_STACK`, `FSCK_OWNER_BASE`, and `FSCK_SEEN_BASE` do not overlap any window backing buffer (`Banks 52..67`), taskbar buffer (`Bank 70`), or user task segment (`Banks 10..41`), `fsck` runs safely with any number of desktop windows open (including when invoked interactively via the `[C]` Check button inside the Disks app window while other apps are open and running).
+- **Measured `fsck` Cost:** Table clear is constant-time (`1` increment of the 27-trit generation counter `FSCK_GEN` at `1,457,960`, rather than zeroing `3,188,646` trytes); the directory tree and SLT chain walk is linear in sectors used; the orphan scan is linear in total sectors on the unit (`total_sectors` SLT entries).
+
+---
+
+## 7. TritOS Desktop 2.0 System Calls (Path Syscalls `#50..#65` & Time Syscalls)
+
+<!-- GENERATED BY desktop/gen_desktop_doc.js FROM desktop/guest-200.asm — DO NOT HAND-EDIT -->
+
+Legacy `SYS_FS_*` syscalls (`#30..#33`) remain compatible and operate on `0:/` (`Sector 200` format). Desktop 2.0.1 exposes `#9` (`SYS_GET_MS`) and the `#50..#65` bridge in `k_fs2_syscall_dispatch`. Every pointer argument in `#50..#65` is validated by `k_check_user_ptr` against the calling task's `[UBASE, ULIMIT)` (TCB `+36` and `+39`) before the kernel reads or writes guest memory.
+
+### 7.1 Syscall Table (`#9` and `#50..#65`)
+
+| Syscall | Name | Arguments (`*` = pointer) | Pointer Validation & Length | Return Value | Error Codes |
+|---:|---|---|---|---|---|
+| `#9` | `SYS_GET_MS` | None | pointer args: none | `R0` = elapsed milliseconds (`drv_timer_read / 200`) | None |
+| `#50` | `SYS_FS2_LIST` | `R0=path_ptr`*, `R1=out_buf_ptr`*, `R2=max_entries` | R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (out_buf_ptr, buf: (R2>0?R2:64)*27) | R0 = active entry count (>= 0), or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`) |
+| `#51` | `SYS_FS2_STAT` | `R0=path_ptr`*, `R1=out_ent27_ptr`* | R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (out_ent27_ptr, struct: 27) | R0 = 0 on success, or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`) |
+| `#52` | `SYS_FS2_READ` | `R0=path_ptr`*, `R1=dst_buf_ptr`*, `R2=max_trytes` | R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (dst_buf_ptr, buf: actual_read_len) | R0 = trytes read (>= 0), or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`) |
+| `#53` | `SYS_FS2_WRITE` | `R0=path_ptr`*, `R1=src_buf_ptr`*, `R2=len_trytes`, `R3=type`, `R4=mtime` | R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (src_buf_ptr, buf: R2) | R0 = 0 on success, or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`), `ERR_FS_WP` (`-5`) |
+| `#54` | `SYS_FS2_MKDIR` | `R0=path_ptr`*, `R1=mtime` | R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT) | R0 = 0 on success, or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`), `ERR_FS_WP` (`-5`) |
+| `#55` | `SYS_FS2_DELETE` | `R0=path_ptr`* | R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT) | R0 = 0 on success, or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`), `ERR_FS_WP` (`-5`) |
+| `#56` | `SYS_FS2_RENAME` | `R0=path_ptr`*, `R1=new_name_ptr`* | R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (new_name_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT) | R0 = 0 on success, or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`), `ERR_FS_WP` (`-5`) |
+| `#57` | `SYS_FS2_COPY` | `R0=src_path_ptr`*, `R1=dst_path_ptr`* | R0 (src_path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (dst_path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT) | R0 = trytes copied (>= 0), or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`), `ERR_FS_WP` (`-5`) |
+| `#58` | `SYS_FS2_UNIT_INFO` | `R0=unit`, `R1=out_info32_ptr`* | R1 (out_info32_ptr, struct: 32) | R0 = mounted kind (0=unmounted, 1=legacy Unit 0, 2=TritFS v2), or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_NO_UNIT` (`-4`) |
+| `#59` | `SYS_FS2_FORMAT` | `R0=unit`, `R1=label_str_ptr`* | R1 (label_str_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT) | R0 = 0 on success, or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`), `ERR_FS_WP` (`-5`) |
+| `#60` | `SYS_FS2_FSCK` | `R0=unit`, `R1=repair_flag`, `R2=out_report12_ptr`* | R2 (out_report12_ptr, struct: 12) | R0 = problems_count, R1 = orphans_count (both negative on error) | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`) |
+| `#61` | `SYS_FS2_COPY_LEGACY` | None | pointer args: none | R0 = number of legacy files copied (>= 0), or negative error code | `ERR_FS_ERR` (`-1`) |
+| `#62` | `SYS_RTC` | `R0=op`, `R1=arg1`, `R2=arg2` | pointer args: none | R0 = RTC seconds (op=0), or 0 / negative error code (op=1..3) | `ERR_FS_ERR` (`-1`) |
+| `#63` | `SYS_FS2_DOC_SAVE` | `R0=name_or_path_ptr`*, `R1=src_buf_ptr`*, `R2=len_trytes`, `R3=type` | R0 (name_or_path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (src_buf_ptr, buf: R2) | R0 = 0 on success, or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`), `ERR_FS_WP` (`-5`) |
+| `#64` | `SYS_FS2_DOC_LOAD` | `R0=name_or_path_ptr`*, `R1=dst_buf_ptr`*, `R2=max_trytes` | R0 (name_or_path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (dst_buf_ptr, buf: actual_read_len) | R0 = trytes read (>= 0), or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`), `ERR_FS_NO_UNIT` (`-4`) |
+| `#65` | `SYS_FS2_APP_INSTALL` | `R0=app_folder_name_ptr`* | R0 (app_folder_name_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT) | R0 = files copied (>= 1), or negative error code | `ERR_BADPTR` (`-14`), `ERR_FS_ERR` (`-1`) |
+
+### 7.2 Path Syscall Error Codes
+
+| Name | Value | Meaning |
+|---|---:|---|
+| `ERR_FS_ERR` | `-1` | General filesystem error (invalid argument, bad path, not found, read-only entry, non-empty directory, disk full, or unit not mounted) |
+| `ERR_FS_NO_UNIT` | `-4` | Unit not present, out of range, or media removed/changed during I/O |
+| `ERR_FS_WP` | `-5` | Target unit is write-protected |
+| `ERR_BADPTR` | `-14` | Pointer argument (or range [ptr, ptr + len - 1] or NUL-terminated path) lies outside the calling task's [UBASE, ULIMIT) |
+
+---
+## 8. `SYS_EXEC_BUF` Executable Format & App Shelf Cartridge Format
+
+### 8.1 `SYS_EXEC_BUF` (`SYSCALL #7`) Executable Format (`main`) & Task Start State
+
+<!-- GENERATED BY desktop/gen_desktop_doc.js FROM desktop/guest-200.asm (k_init_task_slot) — DO NOT HAND-EDIT -->
+
+- **Invocation:** `R0 = buf_ptr`, `R1 = len_trytes`, `R2 = app_id` (e.g., `15` for App Shelf launches).
+- **Binary Layout:** Raw Triton 3 user-mode machine code trytes assembled for origin `0` and copied into the task's `[UBASE, ULIMIT)` segment by `k_init_task_slot`.
+- **Task Start State (`k_init_task_slot`):**
+
+| Register / Field | TCB Offset | Initial Value |
+|---|---:|---|
+| `R0..R7` | `+0..+21` | `0` (TCB zero-filled via `BFILL`) |
+| `R8` | `+24` | `UBASE` |
+| `PC` | `+27` | `UBASE` |
+| `SP` | `+30` | `UBASE + 4500` (per-app exceptions: App `6`: `UBASE + 6950`; App `11`: `UBASE + 4980`) |
+| `ESR` | `+33` | `108` (User Mode, protection enabled, `IE = 1`) |
+| `UBASE` | `+36` | Regular tasks: `(10 + 2 * slot) * 19,683`; App `4` (Assembler): `30 * 19,683 (590,490)` |
+| `ULIMIT` | `+39` | Regular tasks: `UBASE + 39,366 (2 banks)`; App `4` (Assembler): `50 * 19,683 (984,150)` (`20` banks) |
+### 8.2 App Shelf (`1:/apps/<name>` and `2:/apps/<name>`) Directory & `icon` Format
+Each application folder under `1:/apps/<name>` or `2:/apps/<name>` contains:
+1. **`main`** (`meta_type = 4` executable, required): Raw `SYS_EXEC_BUF` user-mode executable trytes (`1..39,000` trytes).
+2. **`icon`** (`meta_type = 2` image, optional):
+   - Either **`256` trytes** (`16 × 16` row-major pixels in the 729-color balanced-ternary palette `[-364..+364]`) or **`258` trytes** (`2`-tryte header `[16, 16]` followed by `256` row-major pixel trytes).
+   - When present, App 14 (`App Shelf`) renders the `16 × 16` icon alongside the app folder name; when absent, App Shelf renders a default application badge.
+
+---
+
+## 9. TritOS Desktop 2.0 Bundled Applications (`Apps 12..14`)
+
+- **Taskbar Row 1 (`y = 462..473`):** `[TERM]` (0), `[MON]` (1), `[CALC]` (5), `[CLK]` (3), `[EDIT]` (8), `[PNT]` (2), `[ASM]` (4), `[SOL]` (6), `[TBLK]` (7), `[SHEET]` (9), `[NET]` (10), `[T3]` (11).
+- **Taskbar Row 2 (`y = 474..485`):** `[FILE]` (App 12), `[DISK]` (App 13), `[APPS]` (App 14).
+- **App 12 — Files (`[FILE]`):**
+  - Lists entries in the current path (`1:/`, `0:/`, `2:/`, or subfolders), displaying `[D]` for folders and `[F]` for files along with tryte size.
+  - Controls / Toolbar buttons:
+    - `0`..`3` or `[0:]` `[1:]` `[2:]`: Switch active unit (`0:/`, `1:/`, `2:/`, `3:/`)
+    - `U` / `D` (`↑` / `↓`): Move selection cursor
+    - `Enter` or `[OPEN]`: Enter selected folder or view file info (`type`, `size_trytes`, `modified_rtc`)
+    - `B` or `[UP]`: Navigate to parent folder (`..`)
+    - `N` or `[NEW]`: Create a new folder (`NEWDIR`) in the current directory
+    - `R` or `[REN]`: Rename the selected entry
+    - `X` (`Y` to confirm) or `[DEL]`: Delete the selected entry (with confirmation prompt)
+    - `C` or `[CPY]`: Copy the selected file across units (e.g., `1:/` ↔ `2:/`)
+    - `L` or `[LEGACY]`: **"Copy legacy files"** — copies every file from `0:/` (`Sector 200`) into `1:/legacy/<name>`
+- **App 13 — Disks (`[DISK]`):**
+  - Displays mounted status, volume label, total sectors, and free sectors for units `0:..3:` (and any selected unit `0..26`).
+  - Controls / Toolbar buttons:
+    - `0`..`9` or `U`/`D`: Select unit
+    - `F` or `[FMT]`: Format selected unit (`1..26`) as TritFS v2
+    - `C` or `[CHK]`: Run `fsck` (with orphan repair enabled) on the selected unit and display `[problems, orphans, fixed_orphans, free_sectors]`
+    - `E` or `[EJT]`: Unmount/eject selected removable unit
+- **App 14 — App Shelf (`[APPS]`):**
+  - Scans `1:/apps` and `2:/apps`, renders each app's `16 × 16` `icon` (when present) and folder name (`1:<name>` or `2:<name>`), launches `main` via `SYS_EXEC_BUF` on `Enter` / `[RUN]`, and installs cartridge apps from `2:/apps/<name>` to `1:/apps/<name>` on `I` / `[INST]`.

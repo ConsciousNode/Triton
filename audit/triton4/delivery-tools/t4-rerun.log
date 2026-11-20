@@ -1,0 +1,84 @@
+====================================================================
+TRITON 4.0 FULL MACHINE VERIFICATION SUITE (node tests/t4-run-all.js)
+====================================================================
+
+[PASS] t4-01-compat: 12/12 T3 suites pass on triton4.html; 56 programs (4,948 steps, incl. 50 seeded random) match T3.1.1 step-for-step (+ Port 29 positive control) in 303520 ms
+[PASS] t4-02-js-wasm: JS === WASM step-for-step across 1,792 steps on unit, timer-mode 1, and RTC programs in 14632 ms
+[PASS] t4-03-ports-units: Ports 28..32, DISK_ERR 4, DMA bounds on 3^7/3^10/3^13 units, IRQ_MEDIA insert/eject, changed bit clear-on-read, .tdisk/raw/HTML snapshot, and T2 isolation in 284 ms
+[PASS] t4-04-timer-rtc: Mode 1 1,000 ms -> +200,000 ticks at both 10k & 1M steps; Mode 0 follows steps (9,996 & 999,996); RTC_SECONDS & offset verified in 584 ms
+/tmp/t4audit/unz/triton/tests/t4-05-fault-browser.js:189
+  throw new Error(`[t4-05.2] Headless browser failed:\n${r.stderr}`);
+  ^
+
+Error: [t4-05.2] Headless browser failed:
+The chromedriver version (147.0.7727.24) detected in PATH at /opt/node22/bin/chromedriver might not be compatible with the detected chrome version (153.0.8010.12); currently, chromedriver 153.0.8010.52 is recommended for chrome 153.*, so it is advised to delete the driver in PATH and retry
+Traceback (most recent call last):
+  File "<string>", line 16, in <module>
+    driver = webdriver.Chrome(options=opts)
+  File "/usr/local/lib/python3.13/site-packages/selenium/webdriver/chrome/webdriver.py", line 45, in __init__
+    super().__init__(
+    ~~~~~~~~~~~~~~~~^
+        browser_name=DesiredCapabilities.CHROME["browserName"],
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+    ...<3 lines>...
+        keep_alive=keep_alive,
+        ^^^^^^^^^^^^^^^^^^^^^^
+    )
+    ^
+  File "/usr/local/lib/python3.13/site-packages/selenium/webdriver/chromium/webdriver.py", line 66, in __init__
+    super().__init__(command_executor=executor, options=self.options)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/selenium/webdriver/common/webdriver.py", line 25, in __init__
+    super().__init__(*args, **kwargs)
+    ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/selenium/webdriver/remote/webdriver.py", line 356, in __init__
+    self.start_session(capabilities)
+    ~~~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/selenium/webdriver/remote/webdriver.py", line 461, in start_session
+    response = self.execute(Command.NEW_SESSION, caps)["value"]
+               ~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/selenium/webdriver/remote/webdriver.py", line 566, in execute
+    self.error_handler.check_response(response)
+    ~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~^^^^^^^^^^
+  File "/usr/local/lib/python3.13/site-packages/selenium/webdriver/remote/errorhandler.py", line 234, in check_response
+    raise exception_class(message, screen, stacktrace)
+selenium.common.exceptions.SessionNotCreatedException: Message: session not created: This version of ChromeDriver only supports Chrome version 147
+Current browser version is 153.0.8010.12 with binary path /opt/google/chrome/chrome; For documentation on this error, please visit: https://www.selenium.dev/documentation/webdriver/troubleshooting/errors#sessionnotcreatedexception
+Stacktrace:
+#0 0x55c96365138a <unknown>
+#1 0x55c9630533a5 <unknown>
+#2 0x55c96309682f <unknown>
+#3 0x55c9630955e0 <unknown>
+#4 0x55c963090ade <unknown>
+#5 0x55c96308ad59 <unknown>
+#6 0x55c9630dafbe <unknown>
+#7 0x55c9630da6ac <unknown>
+#8 0x55c9630996ef <unknown>
+#9 0x55c96309a4b1 <unknown>
+#10 0x55c963614cfb <unknown>
+#11 0x55c963617cad <unknown>
+#12 0x55c963601408 <unknown>
+#13 0x55c963618840 <unknown>
+#14 0x55c9635e7e50 <unknown>
+#15 0x55c96363e188 <unknown>
+#16 0x55c96363e358 <unknown>
+#17 0x55c96364fdce <unknown>
+#18 0x7f9ed989cb84 <unknown>
+#19 0x7f9ed9929ecc <unknown>
+
+
+    at Object.<anonymous> (/tmp/t4audit/unz/triton/tests/t4-05-fault-browser.js:189:9)
+    at Module._compile (node:internal/modules/cjs/loader:1781:14)
+    at Object..js (node:internal/modules/cjs/loader:1913:10)
+    at Module.load (node:internal/modules/cjs/loader:1505:32)
+    at Function._load (node:internal/modules/cjs/loader:1309:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19)
+    at Function.executeUserEntryPoint [as runMain] (node:internal/modules/run_main:171:5)
+    at node:internal/main/run_main_module:36:49
+
+Node.js v22.23.4
+
+====================================================================
+TRITON 4.0 MACHINE SUITE SUMMARY: 4 passed, 1 failed, 0 skipped (total 5) in 324513 ms
+====================================================================
+exit 1

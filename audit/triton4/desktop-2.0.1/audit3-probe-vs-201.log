@@ -1,0 +1,18 @@
+### w201 JS
+mem size 4782969
+write 1:/PMARK r0= undefined
+control read r0= 30 match= true
+READ dst=kernel bank 100 (1968800): r0=-14 changed=false equalsMarker=false
+READ dst=slot-7 user segment (472892): r0=-14 changed=false equalsMarker=false
+READ dst=kernel TCB+? (6000+400) (6400): r0=-14 changed=false equalsMarker=false
+/home/claude/scratch/w201/triton/desktop/tests/tritfs-ref.js:175
+    if (!e || e.type === T_DIR) throw new Error('no such file'); return this._readChain(e.first, e.len); }
+### byp JS
+mem size 4782969
+write 1:/PMARK r0= undefined
+control read r0= 30 match= true
+READ dst=kernel bank 100 (1968800): r0=30 changed=true equalsMarker=true
+READ dst=slot-7 user segment (472892): r0=30 changed=true equalsMarker=true
+READ dst=kernel TCB+? (6000+400) (6400): r0=30 changed=true equalsMarker=true
+WRITE src=kernel bank 74 (1456542): r0=0 fileLen=40 equalsKernelMem=true nonzero=10/40
+halted 0

@@ -1,0 +1,909 @@
+{
+  "source": "desktop/guest-200.asm",
+  "errorCodes": [
+    {
+      "name": "ERR_FS_ERR",
+      "value": -1,
+      "description": "General filesystem error (invalid argument, bad path, not found, read-only entry, non-empty directory, disk full, or unit not mounted)"
+    },
+    {
+      "name": "ERR_FS_NO_UNIT",
+      "value": -4,
+      "description": "Unit not present, out of range, or media removed/changed during I/O"
+    },
+    {
+      "name": "ERR_FS_WP",
+      "value": -5,
+      "description": "Target unit is write-protected"
+    },
+    {
+      "name": "ERR_BADPTR",
+      "value": -14,
+      "description": "Pointer argument (or range [ptr, ptr + len - 1] or NUL-terminated path) lies outside the calling task's [UBASE, ULIMIT)"
+    }
+  ],
+  "syscalls": [
+    {
+      "num": 50,
+      "name": "SYS_FS2_LIST",
+      "dispatchLabel": "kfsd_50",
+      "handler": "drv_fs_list",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "out_buf_ptr",
+          "isPointer": true,
+          "kind": "buf",
+          "lengthRule": "(R2>0?R2:64)*27"
+        },
+        {
+          "reg": "R2",
+          "name": "max_entries",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "out_buf_ptr",
+          "kind": "buf",
+          "lengthRule": "(R2>0?R2:64)*27"
+        }
+      ],
+      "pointerArgsSummary": "R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (out_buf_ptr, buf: (R2>0?R2:64)*27)",
+      "returns": "R0 = active entry count (>= 0), or negative error code",
+      "behavior": "Lists active 27-tryte directory entries in path into out_buf_ptr (up to max_entries, default 64 when R2 <= 0)",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "num": 51,
+      "name": "SYS_FS2_STAT",
+      "dispatchLabel": "kfsd_51",
+      "handler": "drv_fs_stat",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "out_ent27_ptr",
+          "isPointer": true,
+          "kind": "struct",
+          "lengthRule": "27"
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "out_ent27_ptr",
+          "kind": "struct",
+          "lengthRule": "27"
+        }
+      ],
+      "pointerArgsSummary": "R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (out_ent27_ptr, struct: 27)",
+      "returns": "R0 = 0 on success, or negative error code",
+      "behavior": "Writes 27-tryte directory entry for path into out_ent27_ptr",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "num": 52,
+      "name": "SYS_FS2_READ",
+      "dispatchLabel": "kfsd_52",
+      "handler": "drv_fs_read",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "dst_buf_ptr",
+          "isPointer": true,
+          "kind": "buf",
+          "lengthRule": "actual_read_len"
+        },
+        {
+          "reg": "R2",
+          "name": "max_trytes",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "dst_buf_ptr",
+          "kind": "buf",
+          "lengthRule": "actual_read_len"
+        }
+      ],
+      "pointerArgsSummary": "R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (dst_buf_ptr, buf: actual_read_len)",
+      "returns": "R0 = trytes read (>= 0), or negative error code",
+      "behavior": "Reads up to max_trytes (or full file if R2 <= 0) from path into dst_buf_ptr; range-checks actual write length before copying",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        }
+      ]
+    },
+    {
+      "num": 53,
+      "name": "SYS_FS2_WRITE",
+      "dispatchLabel": "kfsd_53",
+      "handler": "drv_fs_write",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "src_buf_ptr",
+          "isPointer": true,
+          "kind": "buf",
+          "lengthRule": "R2"
+        },
+        {
+          "reg": "R2",
+          "name": "len_trytes",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R3",
+          "name": "type",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R4",
+          "name": "mtime",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "src_buf_ptr",
+          "kind": "buf",
+          "lengthRule": "R2"
+        }
+      ],
+      "pointerArgsSummary": "R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (src_buf_ptr, buf: R2)",
+      "returns": "R0 = 0 on success, or negative error code",
+      "behavior": "Writes len_trytes from src_buf_ptr to path with type (1..4) and optional mtime (<= 0 uses RTC) via CoW commit",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        },
+        {
+          "name": "ERR_FS_WP",
+          "value": -5
+        }
+      ]
+    },
+    {
+      "num": 54,
+      "name": "SYS_FS2_MKDIR",
+      "dispatchLabel": "kfsd_54",
+      "handler": "drv_fs_mkdir",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "mtime",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgsSummary": "R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT)",
+      "returns": "R0 = 0 on success, or negative error code",
+      "behavior": "Creates directory at path with optional mtime (<= 0 uses RTC) via CoW commit",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        },
+        {
+          "name": "ERR_FS_WP",
+          "value": -5
+        }
+      ]
+    },
+    {
+      "num": 55,
+      "name": "SYS_FS2_DELETE",
+      "dispatchLabel": "kfsd_55",
+      "handler": "drv_fs_delete",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgsSummary": "R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT)",
+      "returns": "R0 = 0 on success, or negative error code",
+      "behavior": "Deletes file or empty directory at path (refuses read-only entries and non-empty directories)",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        },
+        {
+          "name": "ERR_FS_WP",
+          "value": -5
+        }
+      ]
+    },
+    {
+      "num": 56,
+      "name": "SYS_FS2_RENAME",
+      "dispatchLabel": "kfsd_56",
+      "handler": "drv_fs_rename",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "new_name_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "new_name_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgsSummary": "R0 (path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (new_name_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT)",
+      "returns": "R0 = 0 on success, or negative error code",
+      "behavior": "Renames file or directory at path to new_name within its parent directory",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        },
+        {
+          "name": "ERR_FS_WP",
+          "value": -5
+        }
+      ]
+    },
+    {
+      "num": 57,
+      "name": "SYS_FS2_COPY",
+      "dispatchLabel": "kfsd_57",
+      "handler": "drv_fs_copy",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "src_path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "dst_path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "src_path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "dst_path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgsSummary": "R0 (src_path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (dst_path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT)",
+      "returns": "R0 = trytes copied (>= 0), or negative error code",
+      "behavior": "Copies file from src_path_ptr to dst_path_ptr across or within units",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        },
+        {
+          "name": "ERR_FS_WP",
+          "value": -5
+        }
+      ]
+    },
+    {
+      "num": 58,
+      "name": "SYS_FS2_UNIT_INFO",
+      "dispatchLabel": "kfsd_58",
+      "handler": "drv_fs_unit_info",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "unit",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R1",
+          "name": "out_info32_ptr",
+          "isPointer": true,
+          "kind": "struct",
+          "lengthRule": "32"
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R1",
+          "name": "out_info32_ptr",
+          "kind": "struct",
+          "lengthRule": "32"
+        }
+      ],
+      "pointerArgsSummary": "R1 (out_info32_ptr, struct: 32)",
+      "returns": "R0 = mounted kind (0=unmounted, 1=legacy Unit 0, 2=TritFS v2), or negative error code",
+      "behavior": "Writes 32-tryte unit info struct ([present, flags, mounted, total(w), free(w), used(w), label[16], 0, clean]) to out_info32_ptr",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        }
+      ]
+    },
+    {
+      "num": 59,
+      "name": "SYS_FS2_FORMAT",
+      "dispatchLabel": "kfsd_59",
+      "handler": "drv_fs_format",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "unit",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R1",
+          "name": "label_str_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R1",
+          "name": "label_str_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgsSummary": "R1 (label_str_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT)",
+      "returns": "R0 = 0 on success, or negative error code",
+      "behavior": "Formats unit (1..26) as TritFS v2 with volume label at label_str_ptr and mounts it",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        },
+        {
+          "name": "ERR_FS_WP",
+          "value": -5
+        }
+      ]
+    },
+    {
+      "num": 60,
+      "name": "SYS_FS2_FSCK",
+      "dispatchLabel": "kfsd_60",
+      "handler": "drv_fs_fsck",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "unit",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R1",
+          "name": "repair_flag",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R2",
+          "name": "out_report12_ptr",
+          "isPointer": true,
+          "kind": "struct",
+          "lengthRule": "12"
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R2",
+          "name": "out_report12_ptr",
+          "kind": "struct",
+          "lengthRule": "12"
+        }
+      ],
+      "pointerArgsSummary": "R2 (out_report12_ptr, struct: 12)",
+      "returns": "R0 = problems_count, R1 = orphans_count (both negative on error)",
+      "behavior": "Runs TritFS v2 fsck on unit (1..26), optionally repairing orphans (R1 != 0), writing 12-tryte report [problems(w), orphans(w), repaired(w), err_flags(w)] to out_report12_ptr",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "num": 61,
+      "name": "SYS_FS2_COPY_LEGACY",
+      "dispatchLabel": "kfsd_61",
+      "handler": "drv_fs_copy_legacy",
+      "args": [],
+      "pointerArgs": [],
+      "pointerArgsSummary": "pointer args: none",
+      "returns": "R0 = number of legacy files copied (>= 0), or negative error code",
+      "behavior": "Copies all files from 0:/* into 1:/legacy/<NAME>",
+      "errorCodes": [
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "num": 62,
+      "name": "SYS_RTC",
+      "dispatchLabel": "kfsd_62",
+      "handler": "kfsd_62",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "op",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R1",
+          "name": "arg1",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R2",
+          "name": "arg2",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        }
+      ],
+      "pointerArgs": [],
+      "pointerArgsSummary": "pointer args: none",
+      "returns": "R0 = RTC seconds (op=0), or 0 / negative error code (op=1..3)",
+      "behavior": "R0=0: read RTC seconds (Port 32); R0=1: write R1 to RTC; R0=2: set unit R1 allocation hint to R2; R0=3: unmount/eject unit R1",
+      "errorCodes": [
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        }
+      ]
+    },
+    {
+      "num": 63,
+      "name": "SYS_FS2_DOC_SAVE",
+      "dispatchLabel": "kfsd_63",
+      "handler": "drv_fs_doc_save",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "name_or_path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "src_buf_ptr",
+          "isPointer": true,
+          "kind": "buf",
+          "lengthRule": "R2"
+        },
+        {
+          "reg": "R2",
+          "name": "len_trytes",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        },
+        {
+          "reg": "R3",
+          "name": "type",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "name_or_path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "src_buf_ptr",
+          "kind": "buf",
+          "lengthRule": "R2"
+        }
+      ],
+      "pointerArgsSummary": "R0 (name_or_path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (src_buf_ptr, buf: R2)",
+      "returns": "R0 = 0 on success, or negative error code",
+      "behavior": "Saves bundled-app document to 1:/docs/<name> (mirroring to 0:/<name>, or falling back to 0:/<name> if Unit 1 unmounted); direct path if name contains \":\" or \"/\"",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        },
+        {
+          "name": "ERR_FS_WP",
+          "value": -5
+        }
+      ]
+    },
+    {
+      "num": 64,
+      "name": "SYS_FS2_DOC_LOAD",
+      "dispatchLabel": "kfsd_64",
+      "handler": "drv_fs_doc_load",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "name_or_path_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "dst_buf_ptr",
+          "isPointer": true,
+          "kind": "buf",
+          "lengthRule": "actual_read_len"
+        },
+        {
+          "reg": "R2",
+          "name": "max_trytes",
+          "isPointer": false,
+          "kind": "int",
+          "lengthRule": null
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "name_or_path_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        },
+        {
+          "reg": "R1",
+          "name": "dst_buf_ptr",
+          "kind": "buf",
+          "lengthRule": "actual_read_len"
+        }
+      ],
+      "pointerArgsSummary": "R0 (name_or_path_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT); R1 (dst_buf_ptr, buf: actual_read_len)",
+      "returns": "R0 = trytes read (>= 0), or negative error code",
+      "behavior": "Loads bundled-app document from 1:/docs/<name> (falling back to 0:/<name>); range-checks actual write length before copying",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        },
+        {
+          "name": "ERR_FS_NO_UNIT",
+          "value": -4
+        }
+      ]
+    },
+    {
+      "num": 65,
+      "name": "SYS_FS2_APP_INSTALL",
+      "dispatchLabel": "kfsd_65",
+      "handler": "drv_fs_app_install",
+      "args": [
+        {
+          "reg": "R0",
+          "name": "app_folder_name_ptr",
+          "isPointer": true,
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgs": [
+        {
+          "reg": "R0",
+          "name": "app_folder_name_ptr",
+          "kind": "stringz",
+          "lengthRule": "NUL-terminated through terminating 0 before ULIMIT"
+        }
+      ],
+      "pointerArgsSummary": "R0 (app_folder_name_ptr, stringz: NUL-terminated through terminating 0 before ULIMIT)",
+      "returns": "R0 = files copied (>= 1), or negative error code",
+      "behavior": "Installs cartridge app folder 2:/apps/<name> and its files to 1:/apps/<name>",
+      "errorCodes": [
+        {
+          "name": "ERR_BADPTR",
+          "value": -14
+        },
+        {
+          "name": "ERR_FS_ERR",
+          "value": -1
+        }
+      ]
+    }
+  ],
+  "timeSyscalls": [
+    {
+      "num": 9,
+      "name": "SYS_GET_MS",
+      "args": [],
+      "pointerArgs": [],
+      "pointerArgsSummary": "pointer args: none",
+      "returns": "R0 = elapsed milliseconds (drv_timer_read / 200)",
+      "errorCodes": []
+    }
+  ],
+  "taskStartState": {
+    "sourceFunction": "k_init_task_slot",
+    "bankSizeTrytes": 19683,
+    "regularTask": {
+      "ubaseFormula": "(10 + 2 * slot) * 19,683",
+      "ulimitFormula": "UBASE + 39,366 (2 banks)",
+      "bankBase": 10,
+      "bankStep": 2,
+      "sizeTrytes": 39366
+    },
+    "appExceptions": {
+      "bounds": [
+        {
+          "appId": 4,
+          "ubase": 590490,
+          "ulimit": 984150,
+          "ubaseExpr": "30 * 19,683 (590,490)",
+          "ulimitExpr": "50 * 19,683 (984,150)",
+          "banks": 20
+        }
+      ],
+      "sp": [
+        {
+          "appId": 6,
+          "spOffset": 6950,
+          "spExpr": "UBASE + 6950"
+        },
+        {
+          "appId": 11,
+          "spOffset": 4980,
+          "spExpr": "UBASE + 4980"
+        }
+      ]
+    },
+    "registers": {
+      "R0..R7": "0 (TCB zero-filled via BFILL)",
+      "R8": "UBASE",
+      "PC": "UBASE",
+      "SP": "UBASE + 4500 (exceptions: App 6 = UBASE + 6950, App 11 = UBASE + 4980)",
+      "ESR": 108,
+      "UBASE": "TCB +36",
+      "ULIMIT": "TCB +39"
+    },
+    "tcbOffsets": {
+      "R8": 24,
+      "PC": 27,
+      "SP": 30,
+      "ESR": 33,
+      "UBASE": 36,
+      "ULIMIT": 39
+    }
+  }
+}

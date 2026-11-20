@@ -175,3 +175,117 @@ All frames built and parsed by `net v2` use the 16-byte little-endian StudioNet 
 - **Receive flood protection:** `drv_net_poll` accepts at most `10` frames per drain burst into the 10-slot `K_NET_Q_BASE` ring buffer; any additional frames queued in hardware during a flood are popped via `P_NRX` and counted in `K_NET_DROP_PKTS`.
 - **Ping timeout (`NO REPLY`):** If `K_NET_PING_PENDING == 1` and `drv_timer_read() - K_NET_PING_SENT_TICKS >= 250000` virtual steps elapse without a port-7 reply, `drv_net_poll` clears `K_NET_PING_PENDING = 0`, sets `K_NET_LAST_RTT = -1`, and writes `"NO REPLY"` into `K_NET_STATUS_MSG`.
 - **Missing file or SpiralOS size limit:** If the filename passed to `drv_net_send_file` is empty or not found in the filesystem, `drv_net_send_file` sets `K_NET_STATUS_MSG` to `"FILE NOT FOUND"`, transmits `0` frames, and returns `-1`. If the encoded file size exceeds `440` bytes and `dst_node` is a SpiralOS node (`0x0101`, `0x0201`, or `0x00FE`), `drv_net_send_file` sets `K_NET_STATUS_MSG` to `"TOO BIG FOR SPIRALOS"`, transmits `0` frames, and returns `-2`.
+
+
+---
+
+# TritOS Desktop 2.0 Driver Library Extensions (Triton 4)
+
+In `desktop/tritos-desktop-2.html` (`desktop/guest-200.asm`), the guest assembly driver library is extended for the Triton 4 machine (`Ports 28..32`, `Vector 12 = IRQ_MEDIA`) with upgraded `disk v2`, `timer v2`, and the Copy-on-Write filesystem driver `DRIVER fs v2`.
+
+| Driver | Version | IRQ Vector | Ports Used | Owned Kernel Memory Ranges | Entry Table Labels |
+|---|---|---|---|---|---|
+| `disk` | `v2` | `10` | `P_DA` (7), `P_DD` (8), `P_DLBA` (17), `P_DDMA` (18), `P_DCNT` (19), `P_DCMD` (20), `P_DERR` (21), `P_DUNIT` (28), `P_DSIZE` (29), `P_DFLAGS` (30) | `5875..5877` | `drv_disk_boot`, `drv_disk_irq`, `drv_disk_read`, `drv_disk_write`, `drv_disk_write_tryte`, `drv_disk_select`, `drv_disk_info` |
+| `timer` | `v2` | `7` | `P_TM` (6), `P_TP` (9), `P_TMODE` (31), `P_RTC` (32) | `5866..5868` | `drv_timer_init`, `drv_timer_irq`, `drv_timer_read`, `drv_timer_rtc_read`, `drv_timer_rtc_write` |
+| `fs` | `v2` | `12` | *(none directly; calls `drv_disk_*` and `drv_timer_rtc_read`)* | `1456542..4782968` (`Banks 74..242`) | `drv_fs_init`, `drv_fs_media_irq`, `drv_fs_poll_media`, `drv_fs_format`, `drv_fs_mount_unit`, `drv_fs_unmount_unit`, `drv_fs_set_hint`, `drv_fs_unit_info`, `drv_fs_list`, `drv_fs_stat`, `drv_fs_read`, `drv_fs_write`, `drv_fs_mkdir`, `drv_fs_delete`, `drv_fs_rename`, `drv_fs_copy`, `drv_fs_fsck`, `drv_fs_copy_legacy`, `drv_fs_doc_save`, `drv_fs_doc_load`, `drv_fs_app_install` |
+
+---
+
+## 2.0 Driver: `disk` (`v2`)
+
+- **Markers:** `; ==== DRIVER disk v2 ====` … `; ==== END DRIVER disk ====`
+- **Ports:** `P_DA` (7), `P_DD` (8), `P_DLBA` (17), `P_DDMA` (18), `P_DCNT` (19), `P_DCMD` (20), `P_DERR` (21), `P_DUNIT` (28), `P_DSIZE` (29), `P_DFLAGS` (30)
+- **Memory:** `5875..5877` (`K_DISK_IRQS`, 3-tryte word counting completed disk DMA interrupts)
+- **IRQ Vector:** `10` (`IRQ_DISK`, mask bit 3 = `8` in `SPR_IMASK`)
+
+### Entry Table
+
+| Offset | Entry Label | Registers In | Registers Out | Preserved Registers | Description |
+|---|---|---|---|---|---|
+| `+0` | `drv_disk_boot` | None (reset entry `PC = 0`) | Jumps to `kernel_boot_entry` with `R0 = 1` | N/A | Selects Unit `0` (`P_DUNIT = 0`) and loads `135` sectors (`98,415` trytes) via DMA into RAM `0..98414`, covering the low kernel, bundled apps, and high `.org 65020..75028` (`DRIVER fs v2` + Apps 12–14). |
+| `+2` | `drv_disk_irq` | None (Vector `10`) | Returns via `IRET` | `R0..R8` | Increments `K_DISK_IRQS` (`5875..5877`) and returns via `IRET`. |
+| `+4` | `drv_disk_read` | `R0` = LBA, `R1` = RAM DMA addr, `R2` = sector count | `R0` = `0` on success, or negative error code (`-1`..`-4`) | `R1..R8` | Executes synchronous DMA read (`P_DCMD = 1`) on the currently selected unit. |
+| `+6` | `drv_disk_write` | `R0` = LBA, `R1` = RAM DMA addr, `R2` = sector count | `R0` = `0` on success, or negative error code (`-1`..`-4`) | `R1..R8` | Executes synchronous DMA write (`P_DCMD = 2`) on the currently selected unit. |
+| `+8` | `drv_disk_write_tryte` | `R0` = linear tryte offset, `R1` = tryte value | `R0` = `0` | `R1..R8` | Writes one tryte via legacy PIO ports `P_DA` (7) and `P_DD` (8). |
+| `+10` | `drv_disk_select` | `R0` = unit index (`0..26`) | `R0` = selected unit index | `R1..R8` | Writes `R0` to `P_DUNIT` (Port 28) to select the active storage unit. |
+| `+12` | `drv_disk_info` | `R0` = unit index (`0..26`) | `R0` = `DISK_FLAGS` (`bit 0` present, `bit 1` removable, `bit 2` write-protected, `bit 3` changed [clears on read]), `R1` = `DISK_SIZE` (sectors) | `R2..R8` | Selects unit `R0` via `P_DUNIT` (Port 28), reads `P_DFLAGS` (Port 30) into `R0` and `P_DSIZE` (Port 29) into `R1`, and restores `P_DUNIT = 0`. |
+
+### Error Behavior
+
+If a DMA command on `P_DCMD` (Port 20) fails (`status != 1`), `drv_disk_read` and `drv_disk_write` negate `P_DERR` (Port 21: `1 = ERR_BAD_SECTOR`, `2 = ERR_BAD_DMA_ADDR`, `3 = ERR_BAD_CMD`, `4 = ERR_BAD_UNIT`) and return `-1`..`-4` in `R0`.
+
+---
+
+## 2.0 Driver: `timer` (`v2`)
+
+- **Markers:** `; ==== DRIVER timer v2 ====` … `; ==== END DRIVER timer ====`
+- **Ports:** `P_TM` (6), `P_TP` (9), `P_TMODE` (31), `P_RTC` (32)
+- **Memory:** `5866..5868` (`K_TIMER_IRQS`)
+- **IRQ Vector:** `7` (`IRQ_TIMER`, mask bit 0 = `1` in `SPR_IMASK`)
+
+### Entry Table
+
+| Offset | Entry Label | Registers In | Registers Out | Preserved Registers | Description |
+|---|---|---|---|---|---|
+| `+0` | `drv_timer_init` | `R0` = timer period (`2,500` ticks) | `R0` = `0` | `R1..R8` | Switches `P_TMODE` (Port 31) to `1` (`200 kHz` / `5 µs` real-time ticks from the host clock) and programs `P_TP` (Port 9) to `R0`. |
+| `+2` | `drv_timer_irq` | None (Vector `7`) | Context-switches or returns via `IRET` | All user registers saved in TCB | Increments `K_TIMER_IRQS`, polls keyboard/mouse/media (`k_fs2_poll_media`), and runs the round-robin scheduler. |
+| `+4` | `drv_timer_read` | None | `R0` = monotonic tick count (`200 kHz` in Mode 1) | `R1..R8` | Reads `P_TM` (Port 6) into `R0`. |
+| `+6` | `drv_timer_rtc_read` | None | `R0` = 27-trit seconds since `2000-01-01 00:00:00 UTC` | `R1..R8` | Reads `P_RTC` (Port 32) into `R0`. |
+| `+8` | `drv_timer_rtc_write` | `R0` = new RTC seconds value | `R0` = `0` | `R1..R8` | Writes `R0` to `P_RTC` (Port 32) to set the host-relative RTC offset. |
+
+### Error Behavior
+
+Passing `R0 <= 0` to `drv_timer_init` disables periodic timer interrupts without trapping.
+
+---
+
+## 2.0 Driver: `fs` (`v2`)
+
+- **Markers:** `; ==== DRIVER fs v2 ====` … `; ==== END DRIVER fs ====`
+- **Ports:** None directly (invokes `drv_disk_select`, `drv_disk_info`, `drv_disk_read`, `drv_disk_write`, and `drv_timer_rtc_read` through their driver entry tables)
+- **Memory:** `1456542..4782968` (`Banks 74..242`: unit table, 16-page SLT cache, directory/copy scratch buffers, and generation-stamped `fsck` tables)
+- **IRQ Vector:** `12` (`IRQ_MEDIA`, mask bit 5 = `32` in `SPR_IMASK`, `VBR + 36`)
+
+### Entry Table
+
+| Offset | Entry Label | Registers In | Registers Out | Preserved Registers | Description |
+|---|---|---|---|---|---|
+| `+0` | `drv_fs_init` | None | `R0` = `0` | `R1..R8` | Initializes `Banks 74..75` metadata, invalidates the 16-page SLT cache, scans Units `0..26`, mounts Unit `0` as legacy (`type = 1`), auto-formats blank Unit `1` (`59,049` sectors) as `"HOME"` on first boot, and mounts all present valid TritFS v2 units (`type = 2`). |
+| `+2` | `drv_fs_media_irq` | None (Vector `12` trap entry) | Returns via `IRET` | `R0..R8` | Sets `FS_MEDIA_PENDING = 1` (`1457942`) and returns via `IRET`. |
+| `+4` | `drv_fs_poll_media` | None | `R0` = `0` | `R1..R8` | Polls Units `1..26` via `drv_disk_info` when `FS_MEDIA_PENDING != 0` or requested; unmounts ejected units (flushing SLT cache pages for that unit) and mounts newly inserted valid TritFS v2 units without reboot. |
+| `+6` | `drv_fs_format` | `R0` = unit (`1..26`), `R1` = label ptr (`<= 24` trytes) | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Formats unit `R0` with a TritFS v2 layout (`magic = 360808174`, `version = 2`, SLT sectors `1..slt_len`, empty root directory at `1 + slt_len`, `SLT[0..slt_len] = -2`, `SLT[root] = -1`, all remaining SLT entries `0`), writes Sector `0` last as the atomic commit point, and mounts the unit. |
+| `+8` | `drv_fs_mount_unit` | `R0` = unit (`1..26`) | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Reads Sector `0`, validates `magic == 360808174`, `version == 2`, `total_sectors == DISK_SIZE`, `slt_start == 1`, `slt_len == ceil(total_sectors / 243)`, and valid `root_sec`, computes free sector count, and marks unit mounted (`type = 2`). |
+| `+10` | `drv_fs_unmount_unit` | `R0` = unit (`1..26`) | `R0` = `0` | `R1..R8` | Invalidates any cached SLT pages for unit `R0` and clears its mounted state in `FS_UNIT_TAB`. |
+| `+12` | `drv_fs_set_hint` | `R0` = unit (`1..26`), `R1` = `alloc_hint` word | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Sets the unit's in-memory and superblock `alloc_hint` (`[data_start .. total_sectors - 1]`). |
+| `+14` | `drv_fs_unit_info` | `R0` = unit (`0..26`), `R1` = out_buf (`40` trytes) | `R0` = `0` or `-1` | `R1..R8` | Populates `[present, flags, mount_type, total_sectors(w), free_sectors(w), slt_len(w), root_sec(w), gen(w), label[24]]` at `R1`. |
+| `+16` | `drv_fs_list` | `R0` = path_ptr, `R1` = out_buf, `R2` = max_entries | `R0` = entry count or negative `ERR_FS_*` | `R1..R8` | Resolves `U:/path` (supporting both `0:/` legacy and `1:/..26:/` TritFS v2) and copies live 40-tryte directory entries to `R1`. |
+| `+18` | `drv_fs_stat` | `R0` = path_ptr, `R1` = out_buf (`40` trytes) | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Resolves `U:/path` (including root `U:/`) and writes its 40-tryte directory metadata entry to `R1`. |
+| `+20` | `drv_fs_read` | `R0` = path_ptr, `R1` = dst_buf, `R2` = max_trytes | `R0` = trytes read or negative `ERR_FS_*` | `R1..R8` | Follows the SLT chain (or contiguous LBA run on `0:/`) for `U:/path` and copies up to `R2` trytes into `R1`. |
+| `+22` | `drv_fs_write` | `R0` = path_ptr, `R1` = src_buf, `R2` = len_trytes, `R3` = meta_type | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Writes a new or overwritten file using Copy-on-Write: allocates fresh data sectors, bubbles fresh directory chains up to a new `root_sec`, flushes dirty SLT pages, writes Sector `0` (`generation + 1`, new `root_sec`), and frees superseded chains only after the Sector `0` commit succeeds. |
+| `+24` | `drv_fs_mkdir` | `R0` = path_ptr | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Creates a new empty folder (`type = 2`) at `U:/path` via CoW bubble-up and Sector `0` commit. |
+| `+26` | `drv_fs_delete` | `R0` = path_ptr | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Removes a file or empty folder via CoW bubble-up (`type = 0` tombstoned in new parent directory chain), commits Sector `0`, and frees the target's old SLT chain after commit. |
+| `+28` | `drv_fs_rename` | `R0` = old_path_ptr, `R1` = new_path_ptr | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Moves/renames an entry on the same unit (preserving its data chain and timestamps) or across units (`copy` + `delete`). |
+| `+30` | `drv_fs_copy` | `R0` = src_path_ptr, `R1` = dst_path_ptr | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Copies a file within or across units (`0:/..26:/`), preserving `meta_type` and failing cleanly without corrupting the destination unit if the source unit is ejected mid-copy. |
+| `+32` | `drv_fs_fsck` | `R0` = unit (`1..26`), `R1` = repair_flag (`0`/`1`), `R2` = out_buf (`6` trytes) | `R0` = problem count or negative `ERR_FS_*` | `R1..R8` | Checks superblock, walks directory tree and SLT chains detecting bad pointers, loops, cross-links, and reserved-sector misuse, scans SLT for orphan sectors (`SLT[s] != 0` and unowned), optionally zeroes orphans and updates `free_sectors` when `R1 == 1` and `problems == 0`, and writes `[problems, orphans, fixed_orphans, free_sectors(w)]` to `R2`. |
+| `+34` | `drv_fs_copy_legacy` | None | `R0` = files copied or negative `ERR_FS_*` | `R1..R8` | Ensures `1:/legacy` exists and copies every file from `0:/` (`Sector 200` directory) into `1:/legacy/<name>` tryte-for-tryte. |
+| `+36` | `drv_fs_doc_save` | `R0` = legacy_name_ptr, `R1` = src_buf, `R2` = len, `R3` = type | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Saves document to `1:/docs/<name>` when `1:/` is mounted (ensuring `1:/docs` exists) and mirrors to `0:/<name>`, falling back to `0:/<name>` if Unit `1` is absent. |
+| `+38` | `drv_fs_doc_load` | `R0` = legacy_name_ptr, `R1` = dst_buf, `R2` = max_len | `R0` = trytes read or `-1` | `R1..R8` | Reads `1:/docs/<name>` if present on `1:/`, falling back to `0:/<name>`. |
+| `+40` | `drv_fs_app_install` | `R0` = app_name_ptr | `R0` = `0` or negative `ERR_FS_*` | `R1..R8` | Copies `2:/apps/<name>/main` and `2:/apps/<name>/icon` (if present) into `1:/apps/<name>/` (creating `1:/apps` and `1:/apps/<name>` if needed). |
+
+### Error Behavior & Measured `fsck` Cost
+
+- **Error Codes:** All operations return `0` (or non-negative count/length) on success and negative `ERR_FS_*` codes on failure:
+  - `-1` (`ERR_FS_NOENT`): Path or component not found
+  - `-2` (`ERR_FS_EXIST`): Target already exists (`mkdir` or `rename` onto non-matching type)
+  - `-3` (`ERR_FS_NOTDIR`): Path prefix component is not a directory, or `list` target is a file
+  - `-4` (`ERR_FS_ISDIR`): `read` or `write` target is a directory
+  - `-5` (`ERR_FS_NOTEMPTY`): `delete` target is a non-empty directory
+  - `-6` (`ERR_FS_NOSPC`): Insufficient free sectors on unit for CoW data + directory bubble-up
+  - `-7` (`ERR_FS_RO`): Unit is write-protected (`DISK_FLAGS` bit 2) or read-only
+  - `-8` (`ERR_FS_NOMEDIA`): Unit not present, unmounted, or ejected mid-operation
+  - `-9` (`ERR_FS_CORRUPT`): Invalid superblock magic/version/geometry or corrupted SLT chain (`SLT` loop or out-of-range pointer)
+  - `-10` (`ERR_FS_INVAL`): Empty/invalid path, bad unit index, name `> 24` trytes, or invalid character (`/` or `\0` in name)
+- **Measured `fsck` Cost:**
+  - **Table Clear:** Constant-time (`1` increment of the 27-trit generation counter `FSCK_GEN` at `1457960`, avoiding any bulk clear of the `1,594,323`-tryte `FSCK_OWNER_BASE` and `FSCK_SEEN_BASE` tables).
+  - **Tree & Chain Walk:** Linear in sectors used (`O(used_sectors)` SLT lookups and directory sector reads).
+  - **Orphan Scan:** Linear in total sectors on the unit (`total_sectors` SLT entries inspected across `slt_len = ceil(total_sectors / 243)` SLT sectors).

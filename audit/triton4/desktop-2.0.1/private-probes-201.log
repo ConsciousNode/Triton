@@ -1,0 +1,44 @@
+### 2.0.1 JS
+OK   #52 into own TCB (6192): r0=-14, the file's bytes are not in the TCB, UBASE/ULIMIT intact
+OK   own TCB: machine still running
+OK   #51 stat out at ULIMIT-27+1 (straddles by one): r0=-14, nothing written
+OK   #51 stat out exactly at ULIMIT-27 (control, fits): r0=0
+OK   #50 list out at ULIMIT-1728+1 (straddles by one): r0=-14, nothing written
+OK   #50 list out exactly at ULIMIT-1728 (control, fits): r0=1
+OK   straddle: machine still running
+OK   #52 whole-file read of 30 trytes into ULIMIT-10: r0=-14, nothing written (not even the part that fits)
+OK   #52 whole-file read into ULIMIT-30 (control, exact fit): r0=30, data matches
+OK   whole file: machine still running
+OK   #54 mkdir with an unterminated path ending at ULIMIT: setup r0=6, r0=-14
+OK   unterminated path: machine still running
+agent: TCB slot 3, UBASE 314928, ULIMIT 354294; 4 fresh boots
+ALL OK
+### 2.0.1 WASM
+OK   #52 into own TCB (6192): r0=-14, the file's bytes are not in the TCB, UBASE/ULIMIT intact
+OK   own TCB: machine still running
+OK   #51 stat out at ULIMIT-27+1 (straddles by one): r0=-14, nothing written
+OK   #51 stat out exactly at ULIMIT-27 (control, fits): r0=0
+OK   #50 list out at ULIMIT-1728+1 (straddles by one): r0=-14, nothing written
+OK   #50 list out exactly at ULIMIT-1728 (control, fits): r0=1
+OK   straddle: machine still running
+OK   #52 whole-file read of 30 trytes into ULIMIT-10: r0=-14, nothing written (not even the part that fits)
+OK   #52 whole-file read into ULIMIT-30 (control, exact fit): r0=30, data matches
+OK   whole file: machine still running
+OK   #54 mkdir with an unterminated path ending at ULIMIT: setup r0=6, r0=-14
+OK   unterminated path: machine still running
+agent: TCB slot 3, UBASE 314928, ULIMIT 354294; 4 fresh boots
+ALL OK
+### bypass build JS
+FAIL own TCB: Guest RPC #52 (1:/PMARK) did not complete in 6000000 steps
+FAIL #51 stat out at ULIMIT-27+1 (straddles by one): r0=0, nothing written
+OK   #51 stat out exactly at ULIMIT-27 (control, fits): r0=0
+FAIL #50 list out at ULIMIT-1728+1 (straddles by one): r0=1, nothing written
+OK   #50 list out exactly at ULIMIT-1728 (control, fits): r0=1
+OK   straddle: machine still running
+FAIL #52 whole-file read of 30 trytes into ULIMIT-10: r0=30, nothing written (not even the part that fits)
+OK   #52 whole-file read into ULIMIT-30 (control, exact fit): r0=30, data matches
+OK   whole file: machine still running
+FAIL #54 mkdir with an unterminated path ending at ULIMIT: setup r0=6, r0=-1
+OK   unterminated path: machine still running
+agent: TCB slot 3, UBASE 314928, ULIMIT 354294; 4 fresh boots
+FAILURES: 5
