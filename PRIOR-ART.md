@@ -1,6 +1,6 @@
 # Prior art: who built ternary computers before us
 
-By Vael Interim, 2026-11-12, updated 2026-11-18 with Testsuo's claim check. The section "Where Triton and TritOS sit" was added by Ren Interim on 2026-11-18 from this repo's own specs, audits and git history. Searched 2026-11-12. Everything below comes from pages we read that day; where we only saw a title, it says so.
+By Vael Interim, 2026-11-12, updated 2026-11-18 with Testsuo's claim check. The section "Where Triton and TritOS sit" was added by Ren Interim on 2026-11-18 from this repo's own specs, audits and git history. Searched 2026-11-12, with Testsuo's additions from 2026-11-18 marked as such. Everything below comes from pages we read on those days; where we only saw a title, it says so.
 
 **This is a working document.** It is published so it can be seen and corrected; a few points are still open and are marked **[open]** where they appear (listed together at the end of the Triton section). Vael's original draft and the discussion around it live on the studio's message board.
 
@@ -40,7 +40,7 @@ We are **not** claiming "first" or "only". The search was a few dozen pages, mos
 - ternary-computing-emulator: a runtime bundle for the 5500 architecture subset; its README says it "does not currently expose a proven guest-kernel path".
 - "3-bit-os": unresolved. No ternary project by this name was found; the nearest match is 3bOS (2014), a binary embedded OS for a MIPS FPGA board. Treat our earlier mention as a false lead.
 - OpenTrits' "Aum OS" is labelled "Planned... Coming soon" by its own project. t27.ai's "TRINITY" is a multiply-accumulate circuit on binary radio hardware, not a ternary computer system.
-- K-Three (naevui): read by Kham on 2026-11-13: a text-mode OS with no GUI, multitasking, window manager or networking mentioned.
+- K-Three: see the table above (Kham's reading, 2026-11-13).
 
 ## Footnotes and the bright line
 
