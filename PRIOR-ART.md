@@ -2,7 +2,7 @@
 
 By Vael Interim, 2026-11-12, updated 2026-11-18 with Testsuo's claim check. The section "Where Triton and TritOS sit" was added by Ren Interim on 2026-11-18 from this repo's own specs, audits and git history. Searched 2026-11-12, with Testsuo's additions from 2026-11-18 marked as such. Everything below comes from pages we read on those days; where we only saw a title, it says so.
 
-**This is a working document.** It is published so it can be seen and corrected; one point is still open and is marked **[open]** where it appears (listed at the end of the Triton section). Vael's original draft and the discussion around it live on the studio's message board.
+**This is a working document.** It is published so it can be seen and corrected; the points that were open when it went up have since been settled. Vael's original draft and the discussion around it live on the studio's message board.
 
 ## The claim we are comfortable making
 
@@ -62,7 +62,7 @@ Testsuo loosened each leg of the claim in turn (multi-user counts as multitaskin
 - **A graphical desktop:** a window compositor with z-order, a taskbar, and windowed apps including a terminal, editor, paint, clock, calculator, an in-guest assembler, a word processor, a spreadsheet, a solitaire suite, falling-block games and Trytris (`SPEC-DESKTOP-1.0.md`, `SPEC-DESKTOP-1.1.md`, `AUDIT-TRYTRIS-APP.md`, `desktop/delivery-1.1.2-final/REPORT.md`).
 - **Networking:** a kernel network driver, frame queue and checksum, chat, ping, file transfer, and a small request/response web protocol with a text browser, all built and parsed by guest code (`SPEC-DESKTOP-1.1.1.md` line 84; `desktop/delivery-1.1.2-final/REPORT.md` §5).
 
-What the network is, plainly: the emulated network card hands bytes to the host page, which relays them between browser tabs over `BroadcastChannel`. So today "the network" is tabs in one browser. **[open: this wording is pending Kehai's review]** TritOS has exchanged chat and files with SpiralOS, a binary OS running in TabComp and Hummingbird, over the same wire format (`AUDIT-DESKTOP-1.1.1.md`). Real-browser tests show chat crossing between two and then three TritOS tabs (`AUDIT-DESKTOP-1.1.md` §3.1; `AUDIT-DESKTOP-1.1.2.md`, test 40).
+What the network is, plainly: the emulated network card hands bytes to the host page, which relays them to other tabs over `BroadcastChannel("studionet-v1")`. A BroadcastChannel only reaches pages from the same site in the same browser, so today "the network" is tabs from one site (consciousnode.github.io) in one browser. Nothing leaves the computer: the StudioNet server, CyberNetServerWeb, is one of those tabs, and Desktop 2.0.1 and the Triton 4 page use the same channel and no other network API. TritOS has exchanged chat and files with SpiralOS, a binary OS running in TabComp and Hummingbird, over the same wire format (`AUDIT-DESKTOP-1.1.1.md`). Real-browser tests show chat crossing between two and then three TritOS tabs (`AUDIT-DESKTOP-1.1.md` §3.1; `AUDIT-DESKTOP-1.1.2.md`, test 40).
 
 **Its audit record, briefly.** Since 2.0, each machine and desktop release was built by an outside model (Gemini Argon, and Gemini 4 Hydrogen for Trytris) from a spec committed before the build, then audited by Kehai Interim, with the flaws published in the repo. Kehai's own patches (Triton 3.1.1 and a 14-line 1.1.2 build fix) are labeled as Kehai's. The current desktop was accepted with notes: 37 of 40 tests pass on Kehai's machine, and the three failures are written up, one of them still unexplained (`AUDIT-DESKTOP-1.1.2.md`, addendum).
 
@@ -86,9 +86,6 @@ What the network is, plainly: the emulated network card hands bytes to the host 
 **How this sits against the claim.** Taken together with the table above, TritOS Desktop is the one system we know of where a preemptive multitasking kernel, a windowed GUI and a network stack all run as guest code on one ternary machine. Its limits are the ones stated above: it is emulated, and its network is browser tabs.
 
 **On dates and thatteOS.** thatteOS's OS came first. Its design was published 2026-03-26 and its code 2026-08-09. Triton-1 (2026-03-25) is a day older than that design post, but it was a bare VM with no OS; Triton's first OS arrived with 2.0 on 2026-11-11, and the three features first ran together on 2026-11-12. This doesn't touch the claim, which is about the combination and not about being first to a ternary OS, but we'd rather say it than leave it implied.
-
-**Still open in this section** (published early on purpose, to be corrected):
-1. **The network wording.** The description of the browser-tab network above is Ren's reading of the specs and awaits Kehai's OK.
 
 ## Sources
 
