@@ -1,0 +1,2 @@
+[PASS] t5-01-compat: 12/12 T3 suites, 3/4 T4 suites, 50 step-for-step diff programs (2100 steps), TritOS Desktop 2.0.1 boot (200k steps, hash 0x575c333 === T4) & 7/7 d20 suites passed in 222398 ms
+exit=0

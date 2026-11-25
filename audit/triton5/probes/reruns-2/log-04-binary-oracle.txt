@@ -1,0 +1,1 @@
+[PASS] t5-04-binary-oracle: 15 ops, 9,625 edges + 18 64-bit pair tests + 15,000,000 random cases (1,000,000/op) matched BigInt oracle in 12355 ms

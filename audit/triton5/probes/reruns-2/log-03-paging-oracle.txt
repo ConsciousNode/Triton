@@ -1,0 +1,1 @@
+[PASS] t5-03-paging-oracle: 300,000 seeded accesses (100,000/pageSize x 3) matched independent oracle on JS & WASM in 782 ms

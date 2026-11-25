@@ -1,0 +1,5 @@
+vpage0_mapped_both: CAUGHT  Error: JS ps=729 va=-364: expected PAGE_FAULT with EADDR=va, got ecause=0 R2=0
+unsigned_split_both: CAUGHT  Error: ps=729 va=-364: did not halt
+frame0_allowed_both: CAUGHT  Error: JS ps=729 va=182259: expected PAGE_FAULT with EADDR=va, got ecause=0 R2=0
+pte_base_entry0_both: CAUGHT  Error: ps=729 va=-364: did not halt
+ALL CONTROLS CAUGHT

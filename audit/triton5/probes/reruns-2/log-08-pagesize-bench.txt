@@ -1,0 +1,13 @@
+[PASS] t5-08-pagesize-bench: Measured 4 workloads x 3 page sizes (729/2187/4096) in 206 ms
+  sequential_sweep  ps= 729 | walkSteps=   495 | tlbHit= 99.59% | splitDivSteps= 640000 | tableTrytes=1458
+  sequential_sweep  ps=2187 | walkSteps=   165 | tlbHit= 99.86% | splitDivSteps= 760000 | tableTrytes=4374
+  sequential_sweep  ps=4096 | walkSteps=    90 | tlbHit= 99.92% | splitDivSteps= 880000 | tableTrytes=6144
+  random_access     ps= 729 | walkSteps= 35729 | tlbHit= 12.83% | splitDivSteps= 320000 | tableTrytes=2916
+  random_access     ps=2187 | walkSteps= 24655 | tlbHit= 39.07% | splitDivSteps= 380000 | tableTrytes=4374
+  random_access     ps=4096 | walkSteps= 10898 | tlbHit= 73.13% | splitDivSteps= 440000 | tableTrytes=6144
+  fork_cow          ps= 729 | walkSteps= 10602 | tlbHit= 36.86% | splitDivSteps= 130432 | tableTrytes=1458
+  fork_cow          ps=2187 | walkSteps=   474 | tlbHit= 97.72% | splitDivSteps= 153045 | tableTrytes=4374
+  fork_cow          ps=4096 | walkSteps=   178 | tlbHit= 99.25% | splitDivSteps= 176660 | tableTrytes=6144
+  tlb_thrash        ps= 729 | walkSteps= 25728 | tlbHit=  0.00% | splitDivSteps= 204800 | tableTrytes=1458
+  tlb_thrash        ps=2187 | walkSteps= 25728 | tlbHit=  0.00% | splitDivSteps= 243200 | tableTrytes=4374
+  tlb_thrash        ps=4096 | walkSteps= 25728 | tlbHit=  0.00% | splitDivSteps= 281600 | tableTrytes=6144

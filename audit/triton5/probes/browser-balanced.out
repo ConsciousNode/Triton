@@ -1,0 +1,4 @@
+options: ['729:balanced', '2187:balanced', '729:unsigned', '2187:unsigned', '4096:binary']
+errors: 0 []
+{'729': {'js': {'load': 1234, 'c1': 0, 'nullCause': 13, 'nullEaddr': -364, 'hash': 3575430287}, 'wasm': {'load': 1234, 'c1': 0, 'nullCause': 13, 'nullEaddr': -364, 'hash': 3575430287}, 'same': True}, '2187': {'js': {'load': 1234, 'c1': 0, 'nullCause': 13, 'nullEaddr': -1093, 'hash': 2351932318}, 'wasm': {'load': 1234, 'c1': 0, 'nullCause': 13, 'nullEaddr': -1093, 'hash': 2351932318}, 'same': True}}
+PASS

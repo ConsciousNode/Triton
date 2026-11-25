@@ -1,0 +1,1 @@
+[PASS] t5-12-balanced-restart: BCOPY, BFILL, and LW/SW straddling (+B -> -B) page boundary restarted identically to no-fault ref (JS === WASM every step) across 729 & 2187 in 389 ms

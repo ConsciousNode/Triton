@@ -1,0 +1,3 @@
+balanced-729: 200000 accesses, 130177 loads correct, 69823 faults correct (EADDR = VA); 201 mappings, TLB hits JS=1128126 WASM=1128126, walks JS=122817 WASM=122817
+balanced-2187: 200000 accesses, 130562 loads correct, 69438 faults correct (EADDR = VA); 213 mappings, TLB hits JS=1124531 WASM=1124531, walks JS=124968 WASM=124968
+PASS: 400000 accesses, JS and WASM both match the spec-only oracle, registers equal after every access, full state hashes equal every 100 accesses and at the end

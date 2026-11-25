@@ -1,0 +1,1 @@
+[PASS] t5-07-atomics: CAS under interleaved IRQ_TIMER (unpaged=599, paged=599, 0 lost updates), WFI wake (50 steps), RDTLS/SCRATCH verified JS === WASM in 134 ms

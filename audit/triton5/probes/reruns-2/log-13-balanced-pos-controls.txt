@@ -1,0 +1,1 @@
+[PASS] t5-13-balanced-pos-controls: All 7/7 balanced-3^k mutants caught (unsigned_for_balanced, unsigned_one_level_only, bias_off_by_one, table_base_entry_zero, frame_zero_used, eaddr_in_c_space, vpage_zero_mapped) in 334 ms

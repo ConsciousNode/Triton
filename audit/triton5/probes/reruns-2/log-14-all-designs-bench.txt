@@ -1,0 +1,11 @@
+[PASS] t5-14-all-designs-bench: Measured all 5 designs across TritOS Desktop 2.0.1 (44870 accesses) + sparse synthetic (20000 accesses) in 645 ms
+  tritos_desktop_201  binary-4096    | walkSteps=    38 | tlbHit= 99.97% | split/tx=22 (294g) | tableTrytes=6144
+  tritos_desktop_201  unsigned-729   | walkSteps=   107 | tlbHit= 99.92% | split/tx=16 (96g) | tableTrytes=2916
+  tritos_desktop_201  unsigned-2187  | walkSteps=    56 | tlbHit= 99.96% | split/tx=19 (114g) | tableTrytes=4374
+  tritos_desktop_201  balanced-729   | walkSteps=   107 | tlbHit= 99.92% | split/tx= 0 (0g) | tableTrytes=2187
+  tritos_desktop_201  balanced-2187  | walkSteps=    56 | tlbHit= 99.96% | split/tx= 0 (0g) | tableTrytes=6561
+  sparse_synthetic    binary-4096    | walkSteps=   249 | tlbHit= 99.68% | split/tx=22 (294g) | tableTrytes=12288
+  sparse_synthetic    unsigned-729   | walkSteps= 14916 | tlbHit= 63.76% | split/tx=16 (96g) | tableTrytes=24786
+  sparse_synthetic    unsigned-2187  | walkSteps=  5059 | tlbHit= 87.79% | split/tx=19 (114g) | tableTrytes=19683
+  sparse_synthetic    balanced-729   | walkSteps= 14916 | tlbHit= 63.76% | split/tx= 0 (0g) | tableTrytes=24057
+  sparse_synthetic    balanced-2187  | walkSteps=  5059 | tlbHit= 87.79% | split/tx= 0 (0g) | tableTrytes=19683

@@ -1,0 +1,1 @@
+[PASS] t5-05-restartability: 7 instruction classes (FETCH, LT_ST, LW_SW_STRADDLE, PUSH_POP_CALL_RET, CAS_STRADDLE, BCOPY_MIDWAY, BFILL_MIDWAY) demand-faulted, mapped, and resumed identically to no-fault ref across 729/2187/4096 on JS & WASM in 171 ms

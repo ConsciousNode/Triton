@@ -1,0 +1,1 @@
+[PASS] t5-02-lockstep: JS === WASM state hash verified after EVERY step for 2,100,000 steps (+ 4,200 full-memory computeStateHash checks) across 729/2187/4096 with paging ON & all 20 new opcodes in 9363 ms

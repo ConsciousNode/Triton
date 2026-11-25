@@ -1,0 +1,1 @@
+[PASS] t5-10-balanced-oracle: 2,000,000 addresses (1,000,000/size x 2, all ±B/±(B+1) boundaries) + centred negative-index walks verified JS === WASM in 2798 ms

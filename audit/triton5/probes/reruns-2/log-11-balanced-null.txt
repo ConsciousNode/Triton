@@ -1,0 +1,1 @@
+[PASS] t5-11-balanced-null: NULL (-B) read/write/exec faults (EADDR=-B), vpage0 guard, frame0 guard, and machine-space CALLX verified JS === WASM across 729 & 2187 in 93 ms

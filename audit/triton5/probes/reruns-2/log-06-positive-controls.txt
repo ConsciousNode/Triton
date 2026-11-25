@@ -1,0 +1,1 @@
+[PASS] t5-06-positive-controls: All 4/4 mutants caught (mmu_skip_user_bit, mmu_never_set_dirty_bit, wrapu_off_by_one, bcopy_restarts_from_beginning) in 314 ms
