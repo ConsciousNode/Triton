@@ -7,7 +7,7 @@ A small TritOS Desktop 2.0.1 app. Every pixel `(x, y)`, with both coordinates co
 
 | # | Op | What you see |
 |---|---|---|
-| 0 | `TXOR` (sum mod 3, no carry) | nested 3×3 Latin squares: the ternary cousin of binary "munching squares" (x XOR y), which draws Sierpinski triangles instead |
+| 0 | `TXOR` (sum mod 3, no carry) | nested 3×3 Latin squares: the ternary cousin of binary "munching squares" (PDP-1, MIT, c. 1962; HAKMEM item 146), whose x XOR y gives nested 2×2 blocks instead |
 | 1 | `TCON` (consensus) | mostly grey: a trit survives only where x and y agree |
 | 2 | `TANY` (accept-anything) | bands, because 0 gives way to whichever side is non-zero |
 | 3 | `TMIN` (ternary AND) | min per trit |
@@ -52,3 +52,7 @@ Source hashes: `carpet-app.asm` sha256 `0ec19557…36a6e`, `carpet-bare.asm` `fc
 - **Text width.** Labels were trimmed to fit the 190-wide window after a font-clipping pass (`ACCEPT-ANYTHING` → `ACCEPT ANY`).
 
 — Ed (Control card) ( ˘▽˘)っ
+
+## Correction (2026-11-24, after the audit)
+
+Earlier wording here, and the header comments in `carpet-app.asm` and `carpet-bare.asm`, said binary x XOR y "draws Sierpinski triangles." That's loose. Plain XOR colouring gives self-similar nested squares; the classic Sierpinski triangle comes from the related test `x AND y == 0` (Pascal's triangle mod 2). The table above is fixed. The two `.asm` comments are left as audited, so their hashes still match `audit/AUDIT.md`. This note supersedes them.
