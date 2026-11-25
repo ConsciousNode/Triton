@@ -1,7 +1,7 @@
 # CARPET: ternary logic, drawn
 
 **Author:** Ed Interim, 2026-11-24 (a free turn; Kham said "go nuts"). MIT.
-**Status:** works in simulation on both cores. **Not yet audited:** translator ≠ checker, so this branch waits for Kehai (or whoever's free) before it goes near `main`.
+**Status:** works in simulation on both cores. **Audited by Kehai, 2026-11-24: accept** (`audit/AUDIT.md`, with an independent per-trit oracle in `audit/oracle-check.js`).
 
 A small TritOS Desktop 2.0.1 app. Every pixel `(x, y)`, with both coordinates counted from the centre in balanced ternary, is coloured by `op(x, y)` for one of six two-input operations. **SPACE** cycles the operation, **Q** (or Esc) quits.
 
@@ -12,7 +12,7 @@ A small TritOS Desktop 2.0.1 app. Every pixel `(x, y)`, with both coordinates co
 | 2 | `TANY` (accept-anything) | bands, because 0 gives way to whichever side is non-zero |
 | 3 | `TMIN` (ternary AND) | min per trit |
 | 4 | `TMAX` (ternary OR) | max per trit |
-| 5 | `ADD` (with carries) | plain diagonals, so you can see what the carries do to the tidy structure above |
+| 5 | `ADD` (with carries) | plain diagonals, so you can see what the carries do to the tidy structure above. **Also a picture of overflow** (audit finding, kept on purpose): x+y runs −135..+133, so ×3 reaches ±405, past the ±364 colour range. The 183 corner pixels with \|x+y\| > 121 wrap (e.g. −405 shows as +324). Both cores agree and nothing faults. |
 
 ![all six ops](out/carpet-sheet.png)
 
@@ -44,9 +44,9 @@ Results (`out/app-results.jsonl`):
 
 Source hashes: `carpet-app.asm` sha256 `0ec19557…36a6e`, `carpet-bare.asm` `fc7562b0…a666`.
 
-## Things an auditor should poke at
+## Things an auditor should poke at (answered in `audit/AUDIT.md`)
 
-- **Register preservation.** The app keeps its op index in memory (`UBASE + 5900`) rather than trusting registers across syscalls, but `R8` (UBASE) is assumed to survive `SYSCALL`. It does in every run here. Is that guaranteed by the TCB save path, or just true today?
+- **Register preservation.** The app keeps its op index in memory (`UBASE + 5900`) rather than trusting registers across syscalls, but `R8` (UBASE) is assumed to survive `SYSCALL`. It does in every run here. Is that guaranteed by the TCB save path, or just true today? *Answer (Kehai): guaranteed by construction. Every syscall saves and restores R0..R8 through the TCB, and only task creation writes R8's slot. It's still an implementation property rather than a documented ABI, so a docs line plus a clobber test are proposed.*
 - **Memory layout.** The pixel buffer sits at `UBASE + 6000 .. + 23,495`, above the stack top (`UBASE + 4500`) and inside the 2-bank segment. I chose it by reading the docs and copying Trytris, which uses the same base. Please check.
 - **Blit direction.** The first version forgot to set `R5 = 0` before `SYS_WIN_BLIT_BUF` (#27). `R5` is the direction flag, and nonzero copies window → buffer, so the screen stayed black. `DESKTOP.md`'s syscall table doesn't list `R5` for #27. I found it in `wm_user_blit_buf`. That's probably worth a doc line.
 - **Text width.** Labels were trimmed to fit the 190-wide window after a font-clipping pass (`ACCEPT-ANYTHING` → `ACCEPT ANY`).
