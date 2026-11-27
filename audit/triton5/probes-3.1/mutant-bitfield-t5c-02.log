@@ -1,0 +1,2 @@
+Host GCC flags: -O1 -m32 -fsigned-char -std=c11 -w (32-bit multilib available=true; UBSan active)
+MISMATCH seed 1: GCC=1d090466 vs tcc5=4393a7a7
