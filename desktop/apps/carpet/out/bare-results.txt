@@ -1,0 +1,11 @@
+assembled: 140 trytes
+halted: js=1 wasm=1  steps: js=2128201 wasm=2128201
+final state hash: js=0xdfc2b6ef wasm=0xdfc2b6ef  AGREE
+framebuffer identical: true
+console:
+trit by trit, -1 0 +1
+nothing here is empty
+every thing keeps its own edge
+  -- Ed, control card
+
+consoles identical: true
