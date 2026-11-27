@@ -1,0 +1,97 @@
+
+=== Running t5c-01 (tests/t5c-01-conformance.js) ===
+PASS [5.2.4.2] limits_and_float_headers (2231 steps, JS===WASM 0xf9636047)
+PASS [6.2.5] fundamental_types_sizes (2225 steps, JS===WASM 0xcc6dcba4)
+PASS [6.2.6.1] object_rep_memcpy_negative_int (2448 steps, JS===WASM 0xc9b2041b)
+PASS [6.3.1.1p2] bitfield_integer_promotion_regression (2044 steps, JS===WASM 0xf2310b1e)
+PASS [6.3.1.2] bool_conversion (3256 steps, JS===WASM 0x3a40d3fd)
+PASS [6.3.1.3] unsigned_wrapping_2n (1607 steps, JS===WASM 0x6a41f6e6)
+PASS [6.3.1.8] usual_arithmetic_conversions (1588 steps, JS===WASM 0x65e28e3e)
+PASS [6.4.4] integer_char_hexfloat_literals (3073 steps, JS===WASM 0x8c3555c4)
+PASS [6.5.1.1] generic_selection (1603 steps, JS===WASM 0xf31663ae)
+PASS [6.5.2.5] compound_literals (1537 steps, JS===WASM 0x6edd2e54)
+PASS [6.5.3.4] sizeof_and_alignof (1535 steps, JS===WASM 0x5444b33a)
+PASS [6.5.5] mul_div_mod_trunc_toward_zero (1746 steps, JS===WASM 0x13400715)
+PASS [6.5.6] pointer_arithmetic_ptrdiff (1509 steps, JS===WASM 0x88f91022)
+PASS [6.5.7] bitwise_shifts_signed_unsigned (1440 steps, JS===WASM 0xaaa7c671)
+PASS [6.5.8] pointer_comparison_across_zero_and_uintptr (1607 steps, JS===WASM 0x377d65be)
+PASS [6.5.13] logical_short_circuit (1708 steps, JS===WASM 0xba35ff26)
+PASS [6.5.15] ternary_conditional_operator (1406 steps, JS===WASM 0x635c7769)
+PASS [6.5.16] compound_assignment_and_incdec (2024 steps, JS===WASM 0x89c61d4c)
+PASS [6.7.2.1] structs_unions_anon_and_packed_cross_word (11167 steps, JS===WASM 0x313123a4)
+PASS [6.7.2.2] enumerations (1878 steps, JS===WASM 0x27d9a675)
+PASS [6.7.3] type_qualifiers_const_volatile_restrict (1187 steps, JS===WASM 0x3a734360)
+PASS [6.7.6.2] multidim_arrays_and_vlas (5472 steps, JS===WASM 0xf9612cd6)
+PASS [6.7.6.3] function_pointers_and_struct_by_value (1588 steps, JS===WASM 0x13f7d8e9)
+PASS [6.7.9p9] unnamed_bitfield_init_regression (1994 steps, JS===WASM 0xe434e458)
+PASS [6.7.9p20] brace_elision_regression (2128 steps, JS===WASM 0x42a6aec1)
+PASS [6.7.9p17] designated_initializers_nested (1960 steps, JS===WASM 0x97c1232d)
+PASS [6.7.10] static_assert (1018 steps, JS===WASM 0x5bbc375c)
+PASS [6.8.4.2] switch_fallthrough_and_default (1689 steps, JS===WASM 0x556bb4d7)
+PASS [6.8.5] for_while_do_break_continue (2763 steps, JS===WASM 0xdf90af30)
+PASS [6.10] preprocessor_macros_stringize_paste_if_line (1917 steps, JS===WASM 0x8d256aeb)
+PASS [7.16] stdarg_and_freestanding_headers (2364 steps, JS===WASM 0x943b55f2)
+PASS [7.16.1.1] va_arg_struct_all_sizes (2542 steps, JS===WASM 0xb6b3840d)
+t5c-01 Conformance: 32/32 clauses passed, JS===WASM=true
+
+=== Running t5c-02 (tests/t5c-02-diff-gcc.js) ===
+Host GCC flags: -O0 -m32 -fsigned-char -std=c11 -fsanitize=undefined -fno-sanitize-recover=all -w (32-bit multilib available=true; UBSan active)
+Host GCC flags: -O0 -m32 -fsigned-char -std=c11 -fsanitize=undefined -fno-sanitize-recover=all -w (32-bit multilib available=true; UBSan active)
+Differential progress: run=2000/5000, generated=2000, rejected_ubsan=0, matched=2000, JS===WASM=20/20 (76.1s)
+Differential progress: run=2000/5000, generated=2000, rejected_ubsan=0, matched=2000, JS===WASM=20/20 (82.6s)
+Differential progress: run=4000/5000, generated=4000, rejected_ubsan=0, matched=4000, JS===WASM=40/40 (154.0s)
+Differential progress: run=4000/5000, generated=4000, rejected_ubsan=0, matched=4000, JS===WASM=40/40 (159.8s)
+Differential progress: run=5000/5000, generated=5000, rejected_ubsan=0, matched=5000, JS===WASM=50/50 (190.3s)
+PASS t5c-02 Differential: generated=5000, rejected_ubsan=0, run=5000, matched=5000/5000, JS===WASM=true
+Differential progress: run=5000/5000, generated=5000, rejected_ubsan=0, matched=5000, JS===WASM=50/50 (192.2s)
+PASS t5c-02 Differential: generated=5000, rejected_ubsan=0, run=5000, matched=5000/5000, JS===WASM=true
+Emitted Generator Coverage: {"types":{"schar":20000,"uchar":20000,"sshort":30076,"ushort":15038,"int32":122300,"uint32":228113,"int64":16897,"uint64":26015,"ptr":10097,"arr1d":10000,"arr2d":7081,"struct":10000,"union":7005,"bitfield":96857},"stmts":{"if_else":7455,"nested_if":2485,"for_loop":3598,"while_loop":4315,"do_while":1795,"switch_stmt":2387,"fn_call":19822,"ptr_deref":10154,"struct_by_val":8056,"compound_lit":2573,"va_struct_call":2573,"recursive_call":2472},"ops":{"add":73667,"sub":33557,"mul":90873,"div":4334,"mod":12387,"band":70639,"bor":12566,"bxor":221287,"bnot":4958,"shl":14306,"shr":18760,"cmp":32756,"ternary":24903,"log_and_or":7541,"bf_promo":10000}}
+PASS t5c-02 Differential (2 workers, 192.7s): generated=10000, rejected_ubsan=0, run=10000, matched=10000/10000, JS===WASM=true
+
+=== Running t5c-03 (tests/t5c-03-softfp.js) ===
+Part A (1,000,000 random/op + edges, rt_softfp.c vs host IEEE 754): SOFTFP_1M_FAILS=0 (869 ms)
+Part B (tcc5 guest FP edges + 200 random x 10 ops on JS & WASM): match=true, steps=37426949, wasm=2977ms, js=7070ms, hash=0x3d5a336e
+
+=== Running t5c-04 (tests/t5c-04-int64.js) ===
+Part A (1,000,000 random x 10 ops, rt_int64.c vs BigInt): match=true (d227ee9f49a010b0)
+Part B (tcc5 guest int64 edges + 500 random x 15 ops on JS & WASM): match=true, steps=13496114, wasm=1101ms, js=3090ms, hash=0x50d4662b
+
+=== Running t5c-05 (tests/t5c-05-both-cores.js) ===
+t5c-05 Multi-object & Both Cores: aligned2187=true, out="LINK:592\n", steps=1408, JS===WASM=true (hash 0xe29289fa)
+
+=== Running t5c-06 (tests/t5c-06-selfhost.js) ===
+Runtime self-hosted: 4 objects, 77908 .text trytes in 269 ms
+Generated /tmp/s32/run/tests/t5c_5kloc_engine.c: 5549 lines of C11
+GCC out : "TB5K:ba7816bf:e4e7f110:cbf43926:091e01de:1:174:1:20:4:10:1:109b654b\n" (compile=716ms, run=4ms)
+tcc5 out: "TB5K:ba7816bf:e4e7f110:cbf43926:091e01de:1:174:1:20:4:10:1:109b654b\n" (compile=861ms, image=478140 trytes, steps=1040095, wasm=160ms, js=504ms, JS===WASM=true, hash=0x926dd07a)
+
+=== Running t5c-07 (tests/t5c-07-gnu-ext.js) ===
+PASS t5c-07 GNU Extensions + NetBSD Builtins + Strict Attrs (21358 steps, JS===WASM 0x1a46b2ae)
+
+=== Running t5c-08 (tests/t5c-08-positive-controls.js) ===
+Control 1 (unsigned_add_no_wrap): base=1 mutant=0 caught=true
+Control 2 (signed_rshift_logical): base=-4 mutant=1073741820 caught=true
+Control 3 (struct_arg_last_member_dropped): base=60 mutant=30 caught=true
+Control 4 (float_trunc_instead_of_rne): base=4b800002 mutant=4b800001 caught=true
+Control 5 (reloc_off_by_one): base=9876 mutant= caught=true
+Control 6 (volatile_load_removed): base=42(volOps=12) mutant=1865472962(volOps=4) caught=true
+Control 7 (ptr_cmp_across_zero_unsigned): base=1 mutant=0 caught=true
+Control 8 (va_arg_struct_misaligned_step): base=100 mutant=62 caught=true
+t5c-08 Positive Controls: 8/8 caught
+
+=== Running t5c-09 (tests/t5c-09-browser.js) ===
+Browser UI result: {
+  loadMode: 'file://',
+  consoleOut: 'Triton 5 tcc5 online! fib(20)=6765 pi*1000=3141\n' +
+    '\n' +
+    '---\n' +
+    'Steps: 18159 | Halted: true | JS===WASM: LOCKSTEP OK (hash 2661658830)',
+  runStatus: 'JS ≡ WASM LOCKSTEP OK',
+  compileStats: 'Compiled in 132.6 ms',
+  asmStats: '84221 trytes'
+}
+Console errors: 0, Page errors: 0
+PASS t5c-09 Real Browser (file://): 0 console errors, standalone single-file compiled & ran in-page!
+
+ALL 9 SUITES PASSED in 221.9s (9 entries recorded in results.jsonl)
+EXIT 0
