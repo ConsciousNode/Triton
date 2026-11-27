@@ -1,0 +1,99 @@
+
+=== Running t5c-01 (tests/t5c-01-conformance.js) ===
+PASS preproc_macros_stringize_paste_if_line (2643 steps, JS===WASM hash 0xa7bc82b4)
+PASS integer_types_bool_wrapping_promotions (3593 steps, JS===WASM hash 0xd0a37dd1)
+PASS structs_unions_bitfields_enums_desig_init (2016 steps, JS===WASM hash 0x2c332b3c)
+PASS arrays_vlas_compound_lit_fn_ptrs (5183 steps, JS===WASM hash 0x617c252b)
+PASS c11_static_assert_alignas_alignof_generic_headers (2177 steps, JS===WASM hash 0x254a0987)
+PASS stdarg_pointers_ptrdiff_uintptr_control_flow (8624 steps, JS===WASM hash 0x84ffc761)
+t5c-01 Conformance: 6/6 passed, JS===WASM=true
+
+=== Running t5c-02 (tests/t5c-02-diff-gcc.js) ===
+Differential progress: 2000/10000 matched (batches=20/100, JS===WASM=20/20, elapsed=30.4s)
+Differential progress: 4000/10000 matched (batches=40/100, JS===WASM=40/40, elapsed=59.6s)
+Differential progress: 6000/10000 matched (batches=60/100, JS===WASM=60/60, elapsed=88.7s)
+Differential progress: 8000/10000 matched (batches=80/100, JS===WASM=80/80, elapsed=117.6s)
+Differential progress: 10000/10000 matched (batches=100/100, JS===WASM=100/100, elapsed=144.7s)
+PASS t5c-02 Differential: 10000/10000 exact matches vs GCC, JS===WASM=true
+
+=== Running t5c-03 (tests/t5c-03-softfp.js) ===
+Part A (1,000,000 random/op + edges, rt_softfp.c vs host IEEE 754): SOFTFP_1M_FAILS=0 (963 ms)
+Part B (tcc5 guest FP edges + 200 random x 10 ops on JS & WASM): match=true, steps=37426949, wasm=3544ms, js=8623ms, hash=0x8f445192
+
+=== Running t5c-04 (tests/t5c-04-int64.js) ===
+Part A (1,000,000 random x 10 ops, rt_int64.c vs BigInt): match=true (d227ee9f49a010b0)
+Part B (tcc5 guest int64 edges + 500 random x 15 ops on JS & WASM): match=true, steps=13496114, wasm=1204ms, js=3179ms, hash=0x44504518
+
+=== Running t5c-05 (tests/t5c-05-both-cores.js) ===
+t5c-05 Multi-object & Both Cores: aligned2187=true, out="LINK:592\n", steps=1408, JS===WASM=true (hash 0x14a33ca0)
+
+=== Running t5c-06 (tests/t5c-06-selfhost.js) ===
+Runtime self-hosted: 4 objects, 68966 .text trytes in 156 ms
+Generated /tmp/s3/run/tests/t5c_5kloc_engine.c: 5549 lines of C11
+GCC out : "TB5K:ba7816bf:e4e7f110:cbf43926:091e01de:1:174:1:20:4:10:1:109b654b\n" (compile=854ms, run=5ms)
+tcc5 out: "TB5K:ba7816bf:e4e7f110:cbf43926:091e01de:1:174:1:20:4:10:1:109b654b\n" (compile=638ms, image=467205 trytes, steps=1040095, wasm=150ms, js=361ms, JS===WASM=true, hash=0xf5010714)
+
+=== Running t5c-07 (tests/t5c-07-gnu-ext.js) ===
+PASS t5c-07 GNU Extensions (17354 steps, JS===WASM hash 0x1d2d417b)
+
+=== Running t5c-08 (tests/t5c-08-positive-controls.js) ===
+Control 1 (unsigned_add_no_wrap): base=1 mutant=0 caught=true
+Control 2 (signed_rshift_logical): base=-4 mutant=1073741820 caught=true
+Control 3 (struct_arg_last_member_dropped): base=60 mutant=30 caught=true
+Control 4 (float_trunc_instead_of_rne): base=4b800002 mutant=4b800001 caught=true
+Control 5 (reloc_off_by_one): base=9876 mutant= caught=true
+Control 6 (volatile_load_removed): base=42(volOps=12) mutant=1865472962(volOps=4) caught=true
+t5c-08 Positive Controls: 6/6 caught
+
+=== Running t5c-09 (tests/t5c-09-browser.js) ===
+node:events:497
+      throw er; // Unhandled 'error' event
+      ^
+
+Error: spawn /usr/bin/chromium ENOENT
+    at ChildProcess._handle.onexit (node:internal/child_process:285:19)
+    at onErrorNT (node:internal/child_process:483:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21)
+Emitted 'error' event on ChildProcess instance at:
+    at ChildProcess._handle.onexit (node:internal/child_process:291:12)
+    at onErrorNT (node:internal/child_process:483:16)
+    at process.processTicksAndRejections (node:internal/process/task_queues:89:21) {
+  errno: -2,
+  code: 'ENOENT',
+  syscall: 'spawn /usr/bin/chromium',
+  path: '/usr/bin/chromium',
+  spawnargs: [
+    '--headless=new',
+    '--no-sandbox',
+    '--disable-gpu',
+    '--disable-dev-shm-usage',
+    '--remote-debugging-port=20213',
+    'about:blank'
+  ]
+}
+
+Node.js v22.23.5
+node:child_process:955
+    throw err;
+    ^
+
+Error: Command failed: /opt/node22/bin/node /tmp/s3/run/tests/t5c-09-browser.js
+    at genericNodeError (node:internal/errors:983:15)
+    at wrappedFn (node:internal/errors:537:14)
+    at checkExecSyncError (node:child_process:916:11)
+    at execFileSync (node:child_process:952:15)
+    at Object.<anonymous> (/tmp/s3/run/tests/t5c-run-all.js:44:3)
+    at Module._compile (node:internal/modules/cjs/loader:1781:14)
+    at Object..js (node:internal/modules/cjs/loader:1913:10)
+    at Module.load (node:internal/modules/cjs/loader:1505:32)
+    at Function._load (node:internal/modules/cjs/loader:1309:12)
+    at wrapModuleLoad (node:internal/modules/cjs/loader:254:19) {
+  status: 1,
+  signal: null,
+  output: [ null, null, null ],
+  pid: 991,
+  stdout: null,
+  stderr: null
+}
+
+Node.js v22.23.5
